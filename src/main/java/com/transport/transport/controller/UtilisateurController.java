@@ -162,5 +162,16 @@ public class UtilisateurController {
                 })
                 .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouvé"));
     }
-
+    @GetMapping("/search/numero")
+    public ResponseEntity<?> chercherParNumero(@RequestParam String numero) {
+        return utilisateurService.chercherParNumero(numero)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+    @GetMapping("/search/email")
+    public ResponseEntity<?> chercherParEmail(@RequestParam String email) {
+        return utilisateurService.chercherParEmail(email)
+                .map(ResponseEntity::ok)                  // 200 + objet Utilisateur
+                .orElse(ResponseEntity.notFound().build());// 404 si rien
+    }
 }

@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class UtilisateurService {
@@ -40,5 +41,11 @@ public class UtilisateurService {
 
     public void deleteById(Integer id) {
         repo.deleteById(id);
+    }
+    public Optional<Utilisateur> chercherParNumero(String numero) {
+        return utilisateurRepository.findByTelephone(numero);
+    }
+    public Optional<Utilisateur> chercherParEmail(String email) {
+        return utilisateurRepository.findByEmailIgnoreCase(email);
     }
 }

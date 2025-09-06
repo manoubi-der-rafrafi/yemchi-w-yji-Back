@@ -6,6 +6,7 @@ import com.transport.transport.repository.UtilisateurRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -72,4 +73,12 @@ public class CommandeService {
     public Optional<Commande> getCommandeEnCoursByClientId(Integer idClient) {
         return commandeRepository.findByClientIdAndStatut(idClient, Commande.Statut.en_cours);
     }
+    public Commande confirmerCommande(Integer id) {
+        return commandeRepository.findById(id).map(commande -> {
+            commande.setStatut(Commande.Statut.confirmer);
+            commande.setDateDemande(LocalDateTime.now()); // ➝ date actuelle
+            return commandeRepository.save(commande);
+        }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+    }
+
 }

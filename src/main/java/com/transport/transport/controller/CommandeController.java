@@ -69,4 +69,14 @@ public class CommandeController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+    @PutMapping("/{id}/confirmer")
+    public ResponseEntity<Commande> confirmerCommande(@PathVariable Integer id) {
+        try {
+            Commande commande = commandeService.confirmerCommande(id);
+            return ResponseEntity.ok(commande);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
 }
