@@ -23,7 +23,7 @@ public class CommandeService {
     }
 
     // Historique simple d’un client
-    public List<Commande> getHistoriqueClient(Integer clientId) {
+    public List<Commande> getHistoriqueClient(String  clientId) {
         utilisateurRepository.findById(clientId)
                 .orElseThrow(() -> new IllegalArgumentException("Client introuvable"));
         return commandeRepository.findByClientIdOrderByDateDemandeDesc(clientId);
@@ -34,7 +34,7 @@ public class CommandeService {
     }
 
     // Récupérer une commande par son id
-    public Optional<Commande> getCommandeById(Integer id) {
+    public Optional<Commande> getCommandeById(String  id) {
         return commandeRepository.findById(id);
     }
 
@@ -44,7 +44,7 @@ public class CommandeService {
     }
 
     // Mettre à jour une commande existante
-    public Commande updateCommande(Integer id, Commande commandeDetails) {
+    public Commande updateCommande(String  id, Commande commandeDetails) {
         Optional<Commande> optionalCommande = commandeRepository.findById(id);
         if (optionalCommande.isPresent()) {
             Commande commande = optionalCommande.get();
@@ -58,8 +58,8 @@ public class CommandeService {
             commande.setPrix(commandeDetails.getPrix());
             commande.setModePaiement(commandeDetails.getModePaiement());
             commande.setInstructions(commandeDetails.getInstructions());
-            commande.setClient(commandeDetails.getClient());
-            commande.setTransporteur(commandeDetails.getTransporteur());
+            commande.setClientId(commandeDetails.getClientId());
+            commande.setTransporteurId(commandeDetails.getTransporteurId());
             return commandeRepository.save(commande);
         } else {
             return null; // ou tu peux gérer une exception personnalisée
@@ -67,13 +67,13 @@ public class CommandeService {
     }
 
     // Supprimer une commande par son id
-    public void deleteCommande(Integer id) {
+    public void deleteCommande(String  id) {
         commandeRepository.deleteById(id);
     }
-    public Optional<Commande> getCommandeEnCoursByClientId(Integer idClient) {
+    public Optional<Commande> getCommandeEnCoursByClientId(String  idClient) {
         return commandeRepository.findByClientIdAndStatut(idClient, Commande.Statut.en_cours);
     }
-    public Commande confirmerCommande(Integer id) {
+    public Commande confirmerCommande(String  id) {
         return commandeRepository.findById(id).map(commande -> {
             commande.setStatut(Commande.Statut.confirmer);
             commande.setDateDemande(LocalDateTime.now()); // ➝ date actuelle

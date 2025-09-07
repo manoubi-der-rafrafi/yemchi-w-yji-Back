@@ -1,43 +1,41 @@
 package com.transport.transport.model;
 
-import jakarta.persistence.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "ami")
+@Document(collection = "ami")
 public class Ami {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private String id;  // Mongo uses String/ObjectId
 
-    @ManyToOne
-    @JoinColumn(name = "utilisateur_demandeur", nullable = false)
-    private Utilisateur demandeur;
+    // store only the IDs of users instead of @ManyToOne
+    private String demandeurId;
+    private String recepteurId;
 
-    @ManyToOne
-    @JoinColumn(name = "utilisateur_recepteur", nullable = false)
-    private Utilisateur recepteur;
-
-    @Enumerated(EnumType.STRING)
     private StatutAmi statut = StatutAmi.EN_ATTENTE;
 
-    @Column(name = "cree_le", updatable = false, insertable = false)
-    private LocalDateTime creeLe;
-
-    @Column(name = "maj_le", insertable = false)
+    private LocalDateTime creeLe = LocalDateTime.now();
     private LocalDateTime majLe;
 
-    // Getters et setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    // --- Getters & Setters ---
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    public Utilisateur getDemandeur() { return demandeur; }
-    public void setDemandeur(Utilisateur demandeur) { this.demandeur = demandeur; }
+    public String getDemandeurId() { return demandeurId; }
+    public void setDemandeurId(String demandeurId) { this.demandeurId = demandeurId; }
 
-    public Utilisateur getRecepteur() { return recepteur; }
-    public void setRecepteur(Utilisateur recepteur) { this.recepteur = recepteur; }
+    public String getRecepteurId() { return recepteurId; }
+    public void setRecepteurId(String recepteurId) { this.recepteurId = recepteurId; }
 
     public StatutAmi getStatut() { return statut; }
     public void setStatut(StatutAmi statut) { this.statut = statut; }
+
+    public LocalDateTime getCreeLe() { return creeLe; }
+    public void setCreeLe(LocalDateTime creeLe) { this.creeLe = creeLe; }
+
+    public LocalDateTime getMajLe() { return majLe; }
+    public void setMajLe(LocalDateTime majLe) { this.majLe = majLe; }
 }

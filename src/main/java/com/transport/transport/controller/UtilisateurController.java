@@ -43,7 +43,7 @@ public class UtilisateurController {
 
     // Récupérer un utilisateur par ID (GET /api/utilisateur/id/1)
     @GetMapping("/id/{id}")
-    public ResponseEntity<?> getUtilisateurById(@PathVariable Integer id) {
+    public ResponseEntity<?> getUtilisateurById(@PathVariable String  id) {
         Utilisateur user = utilisateurRepository.findById(id).orElse(null);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouvé");
@@ -62,7 +62,7 @@ public class UtilisateurController {
         return utilisateurService.saveUtilisateur(utilisateur);
     }
     @PutMapping("/{id}")
-    public ResponseEntity<Object> updateUtilisateur(@PathVariable Integer id,
+    public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,
                                                     @RequestBody Utilisateur updated) {
         return utilisateurRepository.findById(id)
                 .map(user -> {
@@ -134,7 +134,7 @@ public class UtilisateurController {
         }
     }
     @GetMapping("/me")
-    public ResponseEntity<?> me(@RequestParam Integer id) {
+    public ResponseEntity<?> me(@RequestParam String  id) {
         // Version simple sans sécurité/JWT: on passe ?id=...
         Utilisateur user = utilisateurRepository.findById(id).orElse(null);
         if (user == null) {
@@ -146,7 +146,7 @@ public class UtilisateurController {
     // Dans UtilisateurController
 
     @PostMapping("/{id}/status")
-    public ResponseEntity<?> updateStatusPost(@PathVariable Integer id, @RequestBody Map<String, String> body) {
+    public ResponseEntity<?> updateStatusPost(@PathVariable String  id, @RequestBody Map<String, String> body) {
         String statut = body.get("statut"); // "actif" | "inactif" | "banni"
         return utilisateurRepository.findById(id)
                 .map(u -> {

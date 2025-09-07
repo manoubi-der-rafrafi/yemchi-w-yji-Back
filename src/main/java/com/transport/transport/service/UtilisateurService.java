@@ -35,11 +35,11 @@ public class UtilisateurService {
         return repo.save(utilisateur);
     }
 
-    public Utilisateur findById(Integer id) {
+    public Utilisateur findById(String  id) {
         return repo.findById(id).orElse(null);
     }
 
-    public void deleteById(Integer id) {
+    public void deleteById(String  id) {
         repo.deleteById(id);
     }
     public Optional<Utilisateur> chercherParNumero(String numero) {

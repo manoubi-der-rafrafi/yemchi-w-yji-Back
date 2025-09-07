@@ -1,11 +1,13 @@
 package com.transport.transport.repository;
 
 import com.transport.transport.model.Utilisateur;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
+import com.transport.transport.model.Utilisateur;
+import org.springframework.data.mongodb.repository.MongoRepository;
 
-public interface UtilisateurRepository extends JpaRepository<Utilisateur, Integer> {
+import java.util.Optional;
+public interface UtilisateurRepository extends MongoRepository<Utilisateur, String> {
     boolean existsByEmail(String email);
     Utilisateur findByEmail(String email);
     Optional<Utilisateur> findByTelephone(String telephone);

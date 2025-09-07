@@ -1,110 +1,121 @@
 package com.transport.transport.service;
 
 import com.transport.transport.model.Ami;
-import com.transport.transport.model.Utilisateur;
 import com.transport.transport.model.StatutAmi;
+import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.AmiRepository;
 import com.transport.transport.repository.UtilisateurRepository;
-import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 public class AmiService {
 
     private final AmiRepository amiRepository;
     private final UtilisateurRepository utilisateurRepository;
-    @Autowired
-    public AmiService(AmiRepository amiRepository , UtilisateurRepository utilisateurRepository) {
+
+    public AmiService(AmiRepository amiRepository, UtilisateurRepository utilisateurRepository) {
         this.amiRepository = amiRepository;
         this.utilisateurRepository = utilisateurRepository;
     }
 
+    /* ----------------------- Invitations CRUD ----------------------- */
+
     public Ami envoyerInvitation(Ami ami) {
-        return amiRepository.save(ami);
-    }
-
-    public List<Ami> listerAmis(Utilisateur user) {
-        return amiRepository.findByDemandeurOrRecepteurAndStatut(user, user, StatutAmi.ACCEPTE);
-    }
-
-    public Ami accepterInvitation(Ami ami) {
-        ami.setStatut(StatutAmi.ACCEPTE);
-        return amiRepository.save(ami);
-    }
-
-    public Ami refuserInvitation(Ami ami) {
-        ami.setStatut(StatutAmi.REFUSE);
-        return amiRepository.save(ami);
-    }
-    public List<Utilisateur> listerAmisUtilisateur(Long userId) {
-        return amiRepository.findAcceptedFriendsOf(userId);
-    }
-    public Ami creerDemandeAmi(Integer demandeurId, Integer recepteurId) {
-        Utilisateur demandeur = utilisateurRepository.findById(demandeurId)
+        // Optionally validate existence of both users
+        utilisateurRepository.findById(ami.getDemandeurId())
                 .orElseThrow(() -> new RuntimeException("Demandeur introuvable"));
-        Utilisateur recepteur = utilisateurRepository.findById(recepteurId)
+        utilisateurRepository.findById(ami.getRecepteurId())
                 .orElseThrow(() -> new RuntimeException("Recepteur introuvable"));
 
-        // Vérifie si une demande en attente existe déjà
-        if (amiRepository.existsByDemandeurIdAndRecepteurIdAndStatut(demandeurId, recepteurId, StatutAmi.EN_ATTENTE)) {
+        // Prevent duplicate pending invitation
+        if (amiRepository.existsByDemandeurIdAndRecepteurIdAndStatut(
+                ami.getDemandeurId(), ami.getRecepteurId(), StatutAmi.EN_ATTENTE)) {
             throw new RuntimeException("Invitation déjà envoyée");
         }
-
-        Ami ami = new Ami();
-        ami.setDemandeur(demandeur);
-        ami.setRecepteur(recepteur);
         ami.setStatut(StatutAmi.EN_ATTENTE);
-
         return amiRepository.save(ami);
     }
-    public Map<String, Object> getRelationStatus(Integer u1, Integer u2) {
-        var list = amiRepository.findAnyBetween(u1, u2);
-        if (list == null || list.isEmpty()) {
-            return Map.of("status", "NONE"); // aucune relation trouvée
-        }
 
-        Ami a = list.get(0); // on prend la première (ou la plus récente si tu as un champ createdAt)
-
-        if (a.getStatut() == StatutAmi.EN_ATTENTE) {
-            boolean sent = a.getDemandeur().getId().equals(u1);
-            return Map.of(
-                    "status", sent ? "PENDING_SENT" : "PENDING_RECEIVED",
-                    "invitationId", a.getId()
-            );
-        }
-        if (a.getStatut() == StatutAmi.ACCEPTE) {
-            return Map.of("status", "ACCEPTED", "invitationId", a.getId());
-        }
-        if (a.getStatut() == StatutAmi.REFUSE) {
-            return Map.of("status", "REFUSED", "invitationId", a.getId());
-        }
-        return Map.of("status", "UNKNOWN");
-    }
-    public List<Utilisateur> getSendersOfReceivedPendingInvitations(Integer userId) {
-        return amiRepository.findPendingInvitationSenders(userId, StatutAmi.EN_ATTENTE);
-    }
-    @Transactional
-    public Ami accepterInvitationByUsers(Integer demandeurId, Integer recepteurId) {
+    public Ami accepterInvitationByUsers(String demandeurId, String recepteurId) {
         Ami ami = amiRepository
                 .findByDemandeurIdAndRecepteurIdAndStatut(demandeurId, recepteurId, StatutAmi.EN_ATTENTE)
                 .orElseThrow(() -> new RuntimeException("Aucune invitation EN_ATTENTE pour ces utilisateurs"));
-
         ami.setStatut(StatutAmi.ACCEPTE);
         return amiRepository.save(ami);
     }
 
-    @Transactional
-    public Ami refuserInvitationByUsers(Integer demandeurId, Integer recepteurId) {
+    public Ami refuserInvitationByUsers(String demandeurId, String recepteurId) {
         Ami ami = amiRepository
                 .findByDemandeurIdAndRecepteurIdAndStatut(demandeurId, recepteurId, StatutAmi.EN_ATTENTE)
                 .orElseThrow(() -> new RuntimeException("Aucune invitation EN_ATTENTE pour ces utilisateurs"));
-
         ami.setStatut(StatutAmi.REFUSE);
         return amiRepository.save(ami);
     }
 
+    /* ----------------------- Queries on relations ----------------------- */
+
+    // If you want raw Ami relations (accepted) for a user:
+    public List<Ami> listerRelationsAcceptees(String userId) {
+        return amiRepository.findAcceptedRelationsOf(userId);
+    }
+
+    // If you want the user's friends as Utilisateur objects (accepted only):
+    public List<Utilisateur> listerAmisUtilisateur(String userId) {
+        List<Ami> relations = amiRepository.findAcceptedRelationsOf(userId);
+
+        // IDs des amis (type String maintenant)
+        Set<String> friendIds = relations.stream()
+                .map(a -> otherSideId(a, userId))   // doit retourner String
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        return friendIds.isEmpty()
+                ? List.of()
+                : utilisateurRepository.findAllById(friendIds);
+    }
+
+
+    // Senders of pending invitations RECEIVED by this user:
+    public List<Utilisateur> getSendersOfReceivedPendingInvitations(String userId) {
+        var pending = amiRepository.findPendingInvitationsForUser(userId, StatutAmi.EN_ATTENTE);
+
+        Set<String> senderIds = pending.stream()
+                .map(Ami::getDemandeurId)   // renvoie déjà un String
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        return senderIds.isEmpty()
+                ? List.of()
+                : utilisateurRepository.findAllById(senderIds);
+    }
+
+
+    // Relation status between u1 and u2:
+    public Map<String, Object> getRelationStatus(String  u1, String  u2) {
+        var list = amiRepository.findAnyBetween(u1, u2);
+        if (list == null || list.isEmpty()) {
+            return Map.of("status", "NONE");
+        }
+        Ami a = list.get(0); // or sort by date if needed
+        return switch (a.getStatut()) {
+            case EN_ATTENTE -> {
+                boolean sent = Objects.equals(a.getDemandeurId(), u1);
+                yield Map.of("status", sent ? "PENDING_SENT" : "PENDING_RECEIVED",
+                        "invitationId", a.getId());
+            }
+            case ACCEPTE -> Map.of("status", "ACCEPTED", "invitationId", a.getId());
+            case REFUSE  -> Map.of("status", "REFUSED", "invitationId", a.getId());
+        };
+    }
+
+    /* ----------------------- Helpers ----------------------- */
+
+    private String  otherSideId(Ami a, String  me) {
+        if (Objects.equals(a.getDemandeurId(), me)) return a.getRecepteurId();
+        if (Objects.equals(a.getRecepteurId(), me)) return a.getDemandeurId();
+        return null;
+    }
 }

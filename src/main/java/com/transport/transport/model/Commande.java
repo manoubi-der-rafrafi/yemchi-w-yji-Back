@@ -1,145 +1,85 @@
 package com.transport.transport.model;
 
-import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-@Entity
-@Table(name = "commande")
+@Document(collection = "commande")
 public class Commande {
+
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    private String id;
 
-    @Column(name = "localisation_depart", length = 255)
     private String localisationDepart;
-
-    @Column(length = 255)
     private String destination;
 
-    @Column(name = "date_debut")
+    /** Période réelle de la course/livraison (si applicable) */
     private LocalDateTime dateDebut;
-
-    @Column(name = "date_fin")
     private LocalDateTime dateFin;
 
-    @Column(name = "date_demande")
+    /** Date de création/demande de commande */
+    @CreatedDate
     private LocalDateTime dateDemande;
 
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20)
     private Statut statut;
 
-    @Column(precision = 10, scale = 2)
     private BigDecimal prix;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "mode_paiement", length = 20)
     private ModePaiement modePaiement;
 
-    @Column(columnDefinition = "TEXT")
     private String instructions;
 
-    @ManyToOne
-    @JoinColumn(name = "id_client")
-    private Utilisateur client;
+    /** Références par ID plutôt que @ManyToOne */
+    private String clientId;        // Utilisateur.id
+    private String transporteurId;  // Utilisateur.id
 
-    @ManyToOne
-    @JoinColumn(name = "id_transporteur")
-    private Utilisateur transporteur;
+    @LastModifiedDate
+    private LocalDateTime majLe;
 
-    // Enumérations
-    public enum Statut {
-        en_attente, en_cours, livree, annulee , confirmer
-    }
+    // --- Enums ---
+    public enum Statut { en_attente, en_cours, livree, annulee, confirmer }
+    public enum ModePaiement { cash, en_ligne, carte }
 
-    public enum ModePaiement {
-        cash, en_ligne, carte
-    }
+    // --- Getters/Setters ---
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    // Getters et Setters
+    public String getLocalisationDepart() { return localisationDepart; }
+    public void setLocalisationDepart(String localisationDepart) { this.localisationDepart = localisationDepart; }
 
-    public Integer getId() {
-        return id;
-    }
-    public void setId(Integer id) {
-        this.id = id;
-    }
+    public String getDestination() { return destination; }
+    public void setDestination(String destination) { this.destination = destination; }
 
-    public String getLocalisationDepart() {
-        return localisationDepart;
-    }
-    public void setLocalisationDepart(String localisationDepart) {
-        this.localisationDepart = localisationDepart;
-    }
+    public LocalDateTime getDateDebut() { return dateDebut; }
+    public void setDateDebut(LocalDateTime dateDebut) { this.dateDebut = dateDebut; }
 
-    public String getDestination() {
-        return destination;
-    }
-    public void setDestination(String destination) {
-        this.destination = destination;
-    }
+    public LocalDateTime getDateFin() { return dateFin; }
+    public void setDateFin(LocalDateTime dateFin) { this.dateFin = dateFin; }
 
-    public LocalDateTime getDateDebut() {
-        return dateDebut;
-    }
-    public void setDateDebut(LocalDateTime dateDebut) {
-        this.dateDebut = dateDebut;
-    }
+    public LocalDateTime getDateDemande() { return dateDemande; }
+    public void setDateDemande(LocalDateTime dateDemande) { this.dateDemande = dateDemande; }
 
-    public LocalDateTime getDateFin() {
-        return dateFin;
-    }
-    public void setDateFin(LocalDateTime dateFin) {
-        this.dateFin = dateFin;
-    }
+    public Statut getStatut() { return statut; }
+    public void setStatut(Statut statut) { this.statut = statut; }
 
-    public LocalDateTime getDateDemande() {
-        return dateDemande;
-    }
-    public void setDateDemande(LocalDateTime dateDemande) {
-        this.dateDemande = dateDemande;
-    }
+    public BigDecimal getPrix() { return prix; }
+    public void setPrix(BigDecimal prix) { this.prix = prix; }
 
-    public Statut getStatut() {
-        return statut;
-    }
-    public void setStatut(Statut statut) {
-        this.statut = statut;
-    }
+    public ModePaiement getModePaiement() { return modePaiement; }
+    public void setModePaiement(ModePaiement modePaiement) { this.modePaiement = modePaiement; }
 
-    public BigDecimal getPrix() {
-        return prix;
-    }
-    public void setPrix(BigDecimal prix) {
-        this.prix = prix;
-    }
+    public String getInstructions() { return instructions; }
+    public void setInstructions(String instructions) { this.instructions = instructions; }
 
-    public ModePaiement getModePaiement() {
-        return modePaiement;
-    }
-    public void setModePaiement(ModePaiement modePaiement) {
-        this.modePaiement = modePaiement;
-    }
+    public String getClientId() { return clientId; }
+    public void setClientId(String clientId) { this.clientId = clientId; }
 
-    public String getInstructions() {
-        return instructions;
-    }
-    public void setInstructions(String instructions) {
-        this.instructions = instructions;
-    }
+    public String getTransporteurId() { return transporteurId; }
+    public void setTransporteurId(String transporteurId) { this.transporteurId = transporteurId; }
 
-    public Utilisateur getClient() {
-        return client;
-    }
-    public void setClient(Utilisateur client) {
-        this.client = client;
-    }
-
-    public Utilisateur getTransporteur() {
-        return transporteur;
-    }
-    public void setTransporteur(Utilisateur transporteur) {
-        this.transporteur = transporteur;
-    }
+    public LocalDateTime getMajLe() { return majLe; }
+    public void setMajLe(LocalDateTime majLe) { this.majLe = majLe; }
 }

@@ -36,7 +36,7 @@ public class ProduitController {
 
     // GET : Récupérer un produit par id
     @GetMapping("/{id}")
-    public ResponseEntity<Produit> getProduitById(@PathVariable Integer id) {
+    public ResponseEntity<Produit> getProduitById(@PathVariable String  id) {
         Optional<Produit> produit = produitService.getProduitById(id);
         return produit.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -50,7 +50,7 @@ public class ProduitController {
 
     // PUT : Modifier un produit existant
     @PutMapping("/{id}")
-    public ResponseEntity<Produit> updateProduit(@PathVariable Integer id, @RequestBody Produit produitDetails) {
+    public ResponseEntity<Produit> updateProduit(@PathVariable String  id, @RequestBody Produit produitDetails) {
         Produit updatedProduit = produitService.updateProduit(id, produitDetails);
         if (updatedProduit != null) {
             return ResponseEntity.ok(updatedProduit);
@@ -61,12 +61,12 @@ public class ProduitController {
 
     // DELETE : Supprimer un produit
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteProduit(@PathVariable Integer id) {
+    public ResponseEntity<Void> deleteProduit(@PathVariable String  id) {
         produitService.deleteProduit(id);
         return ResponseEntity.noContent().build();
     }
     @GetMapping("/commande/{idCommande}")
-    public List<Produit> getProduitsByCommande(@PathVariable Integer idCommande) {
+    public List<Produit> getProduitsByCommande(@PathVariable String  idCommande) {
         return produitService.getProduitsByCommandeId(idCommande);
     }
 

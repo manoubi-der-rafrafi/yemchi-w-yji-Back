@@ -24,7 +24,7 @@ public class CommandeController {
 
     // GET : Récupérer une commande par id
     @GetMapping("/{id}")
-    public ResponseEntity<Commande> getCommandeById(@PathVariable Integer id) {
+    public ResponseEntity<Commande> getCommandeById(@PathVariable String  id) {
         Optional<Commande> commande = commandeService.getCommandeById(id);
         return commande.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -38,7 +38,7 @@ public class CommandeController {
 
     // PUT : Modifier une commande existante
     @PutMapping("/{id}")
-    public ResponseEntity<Commande> updateCommande(@PathVariable Integer id, @RequestBody Commande commandeDetails) {
+    public ResponseEntity<Commande> updateCommande(@PathVariable String  id, @RequestBody Commande commandeDetails) {
         Commande updatedCommande = commandeService.updateCommande(id, commandeDetails);
         if (updatedCommande != null) {
             return ResponseEntity.ok(updatedCommande);
@@ -49,19 +49,19 @@ public class CommandeController {
 
     // DELETE : Supprimer une commande
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCommande(@PathVariable Integer id) {
+    public ResponseEntity<Void> deleteCommande(@PathVariable String  id) {
         commandeService.deleteCommande(id);
         return ResponseEntity.noContent().build();
     }
     @GetMapping("/client/{idClient}/en_cours")
-    public ResponseEntity<Commande> getCommandeEnCoursByClient(@PathVariable Integer idClient) {
+    public ResponseEntity<Commande> getCommandeEnCoursByClient(@PathVariable String  idClient) {
         return commandeService.getCommandeEnCoursByClientId(idClient)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
     // Historique simple d’un client
     @GetMapping("/client/{clientId}")
-    public ResponseEntity<?> getHistoriqueClient(@PathVariable Integer clientId) {
+    public ResponseEntity<?> getHistoriqueClient(@PathVariable String  clientId) {
         try {
             List<Commande> historique = commandeService.getHistoriqueClient(clientId);
             return ResponseEntity.ok(historique);
@@ -70,7 +70,7 @@ public class CommandeController {
         }
     }
     @PutMapping("/{id}/confirmer")
-    public ResponseEntity<Commande> confirmerCommande(@PathVariable Integer id) {
+    public ResponseEntity<Commande> confirmerCommande(@PathVariable String  id) {
         try {
             Commande commande = commandeService.confirmerCommande(id);
             return ResponseEntity.ok(commande);

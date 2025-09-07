@@ -1,55 +1,44 @@
 package com.transport.transport.repository;
 
 import com.transport.transport.model.Ami;
-import com.transport.transport.model.Utilisateur;
 import com.transport.transport.model.StatutAmi;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
-public interface AmiRepository extends JpaRepository<Ami, Long> {
+public interface AmiRepository extends MongoRepository<Ami, String> {
 
-    List<Ami> findByDemandeurOrRecepteurAndStatut(Utilisateur demandeur, Utilisateur recepteur, StatutAmi statut);
-    @Query("""
-        select u
-        from Utilisateur u
-        where exists (
-            select 1
-            from Ami a
-            where a.statut = com.transport.transport.model.StatutAmi.ACCEPTE
-              and (
-                 (a.demandeur = u and a.recepteur.id = :userId)
-                 or
-                 (a.recepteur = u and a.demandeur.id = :userId)
-              )
-        )
-        """)
-        List<Utilisateur> findAcceptedFriendsOf(@Param("userId") Long userId);
-        boolean existsByDemandeurIdAndRecepteurIdAndStatut(Integer demandeurId, Integer recepteurId, StatutAmi statut);
+    // 1) All relations of a user (either side) filtered by statut
+    @Query("{ 'statut': ?1, $or: [ { 'demandeurId': ?0 }, { 'recepteurId': ?0 } ] }")
+    List<Ami> findByUserIdAndStatut(Integer userId, StatutAmi statut);
 
-        // Récupérer TOUTE relation (peu importe le sens)
-        @Query("""
-      select a from Ami a
-      where (a.demandeur.id = :u1 and a.recepteur.id = :u2)
-         or (a.demandeur.id = :u2 and a.recepteur.id = :u1)
-    """)
-    List<Ami> findAnyBetween(@Param("u1") Integer u1, @Param("u2") Integer u2);
-    @Query("""
-    select a.demandeur
-    from Ami a
-    where a.recepteur.id = :userId
-      and a.statut = :statut
-    order by a.id desc
-""")
-    List<Utilisateur> findPendingInvitationSenders(@Param("userId") Integer userId,
-                                                   @Param("statut") StatutAmi statut);
-    Optional<Ami> findByDemandeurIdAndRecepteurIdAndStatut(
-            Integer demandeurId,
-            Integer recepteurId,
-            StatutAmi statut
-    );
+    // 2) Any relation between two users (regardless of direction)
+    @Query("{ $or: [ { 'demandeurId': ?0, 'recepteurId': ?1 }, { 'demandeurId': ?1, 'recepteurId': ?0 } ] }")
+    List<Ami> findAnyBetween(String u1, String u2);
 
+    // 3) Existence check in one direction with a given statut
+    boolean existsByDemandeurIdAndRecepteurIdAndStatut(String demandeurId,
+                                                       String recepteurId,
+                                                       StatutAmi statut);
+
+    // 4) Find one relation in one direction with a given statut
+    Optional<Ami> findByDemandeurIdAndRecepteurIdAndStatut(String demandeurId,
+                                                           String recepteurId,
+                                                           StatutAmi statut);
+
+    // 5) Pending invitations a user HAS RECEIVED (sorted newest first)
+    @Query(value = "{ 'recepteurId': ?0, 'statut': ?1 }", sort = "{ '_id': -1 }")
+    List<Ami> findPendingInvitationsForUser(String userId, StatutAmi statut);
+
+    // 6) Accepted relations of a user (either side)
+    @Query("{ 'statut': 'ACCEPTE', $or: [ { 'demandeurId': ?0 }, { 'recepteurId': ?0 } ] }")
+    List<Ami> findAcceptedRelationsOf(String userId);
+    private String otherSideId(Ami a, String me) {
+        if (Objects.equals(a.getDemandeurId(), me)) return a.getRecepteurId();
+        if (Objects.equals(a.getRecepteurId(), me)) return a.getDemandeurId();
+        return null;
+    }
 }

@@ -20,7 +20,7 @@ public class ProduitService {
     }
 
     // Récupérer un produit par son id
-    public Optional<Produit> getProduitById(Integer id) {
+    public Optional<Produit> getProduitById(String  id) {
         return produitRepository.findById(id);
     }
 
@@ -30,7 +30,7 @@ public class ProduitService {
     }
 
     // Mettre à jour un produit existant
-    public Produit updateProduit(Integer id, Produit produitDetails) {
+    public Produit updateProduit(String  id, Produit produitDetails) {
         Optional<Produit> optionalProduit = produitRepository.findById(id);
         if (optionalProduit.isPresent()) {
             Produit produit = optionalProduit.get();
@@ -46,7 +46,7 @@ public class ProduitService {
             produit.setImage1(produitDetails.getImage1());
             produit.setImage2(produitDetails.getImage2());
             produit.setImage3(produitDetails.getImage3());
-            produit.setCommande(produitDetails.getCommande());
+            produit.setCommandeId(produitDetails.getCommandeId());
             produit.setPrix(produitDetails.getPrix());
             return produitRepository.save(produit);
         } else {
@@ -55,10 +55,10 @@ public class ProduitService {
     }
 
     // Supprimer un produit par son id
-    public void deleteProduit(Integer id) {
+    public void deleteProduit(String  id) {
         produitRepository.deleteById(id);
     }
-    public List<Produit> getProduitsByCommandeId(Integer idCommande) {
+    public List<Produit> getProduitsByCommandeId(String  idCommande) {
         return produitRepository.findByCommandeId(idCommande);
     }
 
