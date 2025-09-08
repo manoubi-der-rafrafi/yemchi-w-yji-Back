@@ -1,14 +1,13 @@
-# Étape 1 : utiliser une image Java officielle (Java 17)
-FROM eclipse-temurin:17-jdk-alpine
-
-# Étape 2 : définir le dossier de travail dans le conteneur
+# Étape 1 : Build avec Maven
+FROM maven:3.9.6-eclipse-temurin-17 AS build
 WORKDIR /app
+COPY pom.xml .
+COPY src ./src
+RUN mvn -B clean package -DskipTests
 
-# Étape 3 : copier le JAR généré dans le conteneur
-COPY target/transport-0.0.1-SNAPSHOT.jar app.jar
-
-# Étape 4 : exposer le port (8081 car ton app tourne sur ce port)
+# Étape 2 : Run avec JDK léger
+FROM eclipse-temurin:17-jdk-alpine
+WORKDIR /app
+COPY --from=build /app/target/transport-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8081
-
-# Étape 5 : lancer l’application
 ENTRYPOINT ["java", "-jar", "app.jar"]
