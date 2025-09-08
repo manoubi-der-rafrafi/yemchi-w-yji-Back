@@ -26,7 +26,7 @@ public class CorsFilterConfig implements Filter {
 
         String origin = request.getHeader("Origin");
 
-        if (origin != null && (origin.equals("http://localhost:4200") || origin.equals("http://localhost:4200"))) {
+        if (origin != null && (origin.equals("http://localhost:4200") || origin.equals("https://yemchi-w-yji-front.vercel.app"))) {
             response.setHeader("Access-Control-Allow-Origin", origin); // origine dynamique
             response.setHeader("Vary", "Origin"); // pour éviter les erreurs de cache navigateur
         }
