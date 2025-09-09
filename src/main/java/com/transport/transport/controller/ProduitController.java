@@ -20,6 +20,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.CrossOrigin;
+
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/produits")
 public class ProduitController {
@@ -27,6 +36,11 @@ public class ProduitController {
     @Autowired
     private ProduitService produitService;
     private final String uploadBaseDir = "C:/Users/Lenovo/Desktop/angular/transport/public/produits";
+    private final Cloudinary cloudinary;
+
+    public ProduitController(Cloudinary cloudinary) {
+        this.cloudinary = cloudinary;
+    }
 
     // GET : Liste de tous les produits
     @GetMapping
@@ -71,46 +85,47 @@ public class ProduitController {
     }
 
 
-    @CrossOrigin(origins = {"http://localhost:4200", "http://192.168.1.155:4200"}, allowCredentials = "true")
+    @CrossOrigin(origins = {"http://localhost:4200", "https://yemchi-w-yji-back-1.onrender.com"}, allowCredentials = "true")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadProduit(@RequestParam("image") MultipartFile image) {
         try {
-            if (image.isEmpty()) {
+            if (image == null || image.isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("success", false, "message", "Fichier vide"));
             }
 
-            // 1) Créer le dossier si nécessaire
-            Path uploadDir = Paths.get(uploadBaseDir);
-            Files.createDirectories(uploadDir);
+            // Options utiles : dossier, type image, nom de fichier auto
+            Map params = ObjectUtils.asMap(
+                    "folder", "monapp/produits",     // <- change le chemin si tu veux
+                    "resource_type", "image",
+                    "use_filename", true,            // garde le nom d'origine si possible
+                    "unique_filename", true,         // évite les collisions
+                    "overwrite", false
+            );
 
-            // 2) Nom de fichier unique pour éviter les collisions
-            String original = StringUtils.cleanPath(image.getOriginalFilename());
-            String ext = "";
-            int dot = original.lastIndexOf('.');
-            if (dot >= 0) ext = original.substring(dot).toLowerCase();
-            if (!ext.matches("\\.(png|jpg|jpeg|webp|gif)$")) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("success", false, "message", "Extension non autorisée"));
-            }
-            String filename = UUID.randomUUID().toString() + ext;
+            Map res = cloudinary.uploader().upload(image.getBytes(), params);
 
-            // 3) Sauvegarde réelle
-            Path destination = uploadDir.resolve(filename);
-            Files.copy(image.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
-
-            // 4) URL publique (voir WebMvcConfig ci-dessous)
-            String publicUrl = "/produits/" + filename;
+            String url = (String) res.get("secure_url");
+            String publicId = (String) res.get("public_id");
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "url", publicUrl,
-                    "message", "Fichier uploadé avec succès"
+                    "url", url,            // à stocker dans ta DB (Produit.imageUrl)
+                    "public_id", publicId  // utile si tu veux supprimer/modifier plus tard
             ));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError()
                     .body(Map.of("success", false, "message", "Erreur serveur: " + e.getMessage()));
         }
+    }
+
+
+    @PostMapping("/{target}") // target = produits | profile
+    public Map<String, String> upload(@PathVariable String target,
+                                      @RequestParam("file") MultipartFile file) throws IOException {
+        Map params = ObjectUtils.asMap("folder", "monapp/" + target);
+        Map uploadResult = cloudinary.uploader().upload(file.getBytes(), params);
+        return Map.of("url", (String) uploadResult.get("secure_url"));
     }
 }
