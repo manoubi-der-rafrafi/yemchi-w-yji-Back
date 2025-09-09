@@ -1,5 +1,7 @@
 package com.transport.transport.controller;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
 import com.transport.transport.service.UtilisateurService;
@@ -17,7 +19,13 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.UUID;
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.util.Map;
 @RestController
 @RequestMapping("/api/utilisateur")
 public class UtilisateurController {
@@ -25,10 +33,12 @@ public class UtilisateurController {
     @Autowired
     private UtilisateurRepository utilisateurRepository;
     private UtilisateurService utilisateurService;
+    private final Cloudinary cloudinary;
     // LOGIN : POST /api/utilisateur/login
     private final String uploadBaseDir = "C:/Users/Lenovo/Desktop/angular/transport/public/profil";
-    public UtilisateurController(UtilisateurService utilisateurService) {
+    public UtilisateurController(UtilisateurService utilisateurService, Cloudinary cloudinary) {
         this.utilisateurService = utilisateurService;
+        this.cloudinary = cloudinary;
     }
 
 
@@ -95,37 +105,38 @@ public class UtilisateurController {
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadProduit(@RequestParam("image") MultipartFile image) {
         try {
-            if (image.isEmpty()) {
+            if (image == null || image.isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("success", false, "message", "Fichier vide"));
             }
 
-            // 1) Créer le dossier si nécessaire
-            Path uploadDir = Paths.get(uploadBaseDir);
-            Files.createDirectories(uploadDir);
-
-            // 2) Nom de fichier unique pour éviter les collisions
-            String original = StringUtils.cleanPath(image.getOriginalFilename());
-            String ext = "";
-            int dot = original.lastIndexOf('.');
-            if (dot >= 0) ext = original.substring(dot).toLowerCase();
-            if (!ext.matches("\\.(png|jpg|jpeg|webp|gif)$")) {
+            // (Optionnel) petit contrôle de type MIME côté serveur
+            String contentType = image.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
                 return ResponseEntity.badRequest()
-                        .body(Map.of("success", false, "message", "Extension non autorisée"));
+                        .body(Map.of("success", false, "message", "Le fichier doit être une image"));
             }
-            String filename = UUID.randomUUID().toString() + ext;
 
-            // 3) Sauvegarde réelle
-            Path destination = uploadDir.resolve(filename);
-            Files.copy(image.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+            // Paramètres Cloudinary
+            Map<String, Object> params = ObjectUtils.asMap(
+                    "folder", "monapp/profil",  // <- change en "monapp/produits" si besoin
+                    "resource_type", "image",
+                    "use_filename", true,       // garde (en partie) le nom d'origine
+                    "unique_filename", true,    // évite les collisions
+                    "overwrite", false
+            );
 
-            // 4) URL publique (voir WebMvcConfig ci-dessous)
-            String publicUrl = "profil/" + filename;
+            // Upload direct en mémoire (pas d’écriture disque)
+            @SuppressWarnings("unchecked")
+            Map<String, Object> res = cloudinary.uploader().upload(image.getBytes(), params);
+
+            String url = (String) res.get("secure_url");
+            String publicId = (String) res.get("public_id");
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "url", publicUrl,
-                    "message", "Fichier uploadé avec succès"
+                    "url", url,           // => à stocker dans ta DB (ex: Produit.imageUrl ou User.photoUrl)
+                    "public_id", publicId // => utile pour supprimer/mettre à jour plus tard
             ));
         } catch (Exception e) {
             e.printStackTrace();
