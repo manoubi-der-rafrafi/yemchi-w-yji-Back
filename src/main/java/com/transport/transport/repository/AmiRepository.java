@@ -1,13 +1,14 @@
 package com.transport.transport.repository;
 
-import com.transport.transport.model.Ami;
-import com.transport.transport.model.StatutAmi;
-import org.springframework.data.mongodb.repository.MongoRepository;
-import org.springframework.data.mongodb.repository.Query;
-
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+
+import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
+
+import com.transport.transport.model.Ami;
+import com.transport.transport.model.StatutAmi;
 
 public interface AmiRepository extends MongoRepository<Ami, String> {
 

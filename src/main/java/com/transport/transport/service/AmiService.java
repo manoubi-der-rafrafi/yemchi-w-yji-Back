@@ -1,14 +1,19 @@
 package com.transport.transport.service;
 
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+
 import com.transport.transport.model.Ami;
 import com.transport.transport.model.StatutAmi;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.AmiRepository;
 import com.transport.transport.repository.UtilisateurRepository;
-import org.springframework.stereotype.Service;
-
-import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class AmiService {
@@ -117,5 +122,33 @@ public class AmiService {
         if (Objects.equals(a.getDemandeurId(), me)) return a.getRecepteurId();
         if (Objects.equals(a.getRecepteurId(), me)) return a.getDemandeurId();
         return null;
+    }
+    
+    public List<Utilisateur> searchMyFriendsByNumero(String meId, String numero) {
+        if (numero == null) numero = "";
+        numero = numero.replaceAll("\\D", "");        // garde que les chiffres
+        if (numero.length() < 2) return List.of();    // on évite les recherches trop larges
+
+        // 1) récupérer toutes les relations ACCEPTÉES du user
+        List<Ami> relations = amiRepository.findAcceptedRelationsOf(meId);
+
+        // 2) extraire uniquement l'ID de l'ami (l'autre côté de la relation)
+        List<String> friendIds = relations.stream()
+                .map(a -> {
+                    if (meId.equals(a.getDemandeurId())) return a.getRecepteurId();
+                    if (meId.equals(a.getRecepteurId())) return a.getDemandeurId();
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (friendIds.isEmpty()) return List.of();
+
+        // 3) construire la regex (commence par). Pour "exact", mets '^' + numero + '$'
+        String regex = "^" + numero;
+
+        // 4) chercher les Utilisateur dont _id ∈ friendIds ET telephone ~ regex
+        return utilisateurRepository.findByIdInAndTelephoneRegex(friendIds, regex);
     }
 }

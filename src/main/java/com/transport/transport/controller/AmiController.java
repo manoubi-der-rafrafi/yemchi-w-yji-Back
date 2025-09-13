@@ -1,13 +1,21 @@
 package com.transport.transport.controller;
 
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.transport.transport.model.Ami;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.service.AmiService;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/amis")
@@ -74,5 +82,13 @@ public class AmiController {
     public ResponseEntity<Ami> refuser(@RequestParam String demandeurId,
                                        @RequestParam String recepteurId) {
         return ResponseEntity.ok(amiService.refuserInvitationByUsers(demandeurId, recepteurId));
+    }
+    @GetMapping("/search/mes-amis/numero")
+    public ResponseEntity<List<Utilisateur>> searchMyFriendsByNumero(
+            @RequestParam("me") String meId,
+            @RequestParam("q") String numero
+    ) {
+        List<Utilisateur> res = amiService.searchMyFriendsByNumero(meId, numero);
+        return ResponseEntity.ok(res); // renvoie [] si vide (200)
     }
 }
