@@ -1,14 +1,15 @@
 package com.transport.transport.service;
 
-import com.transport.transport.model.Commande;
-import com.transport.transport.repository.CommandeRepository;
-import com.transport.transport.repository.UtilisateurRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.transport.transport.model.Commande;
+import com.transport.transport.repository.CommandeRepository;
+import com.transport.transport.repository.UtilisateurRepository;
 
 @Service
 public class CommandeService {
@@ -44,27 +45,32 @@ public class CommandeService {
     }
 
     // Mettre à jour une commande existante
-    public Commande updateCommande(String  id, Commande commandeDetails) {
-        Optional<Commande> optionalCommande = commandeRepository.findById(id);
-        if (optionalCommande.isPresent()) {
-            Commande commande = optionalCommande.get();
-            // Met à jour les champs ici selon besoin
-            commande.setLocalisationDepart(commandeDetails.getLocalisationDepart());
-            commande.setDestination(commandeDetails.getDestination());
-            commande.setDateDebut(commandeDetails.getDateDebut());
-            commande.setDateFin(commandeDetails.getDateFin());
-            commande.setDateDemande(commandeDetails.getDateDemande());
-            commande.setStatut(commandeDetails.getStatut());
-            commande.setPrix(commandeDetails.getPrix());
-            commande.setModePaiement(commandeDetails.getModePaiement());
-            commande.setInstructions(commandeDetails.getInstructions());
-            commande.setClientId(commandeDetails.getClientId());
-            commande.setTransporteurId(commandeDetails.getTransporteurId());
-            return commandeRepository.save(commande);
-        } else {
-            return null; // ou tu peux gérer une exception personnalisée
-        }
+    public Commande updateCommande(String id, Commande commandeDetails) {
+    Optional<Commande> optionalCommande = commandeRepository.findById(id);
+    if (optionalCommande.isPresent()) {
+        Commande commande = optionalCommande.get();
+        // Met à jour les champs
+        commande.setLocalisationDepart(commandeDetails.getLocalisationDepart());
+        commande.setDestination(commandeDetails.getDestination());
+        commande.setDateDebut(commandeDetails.getDateDebut());
+        commande.setDateFin(commandeDetails.getDateFin());
+        commande.setDateDemande(commandeDetails.getDateDemande());
+        commande.setStatut(commandeDetails.getStatut());
+        commande.setPrix(commandeDetails.getPrix());
+        commande.setModePaiement(commandeDetails.getModePaiement());
+        commande.setInstructions(commandeDetails.getInstructions());
+        commande.setClientId(commandeDetails.getClientId());
+        commande.setTransporteurId(commandeDetails.getTransporteurId());
+
+        // ✅ Ajout de la mise à jour du téléphone de départ
+        commande.setTelDepart(commandeDetails.getTelDepart());
+
+        return commandeRepository.save(commande);
+    } else {
+        return null; // ou lancer une exception personnalisée
     }
+}
+
 
     // Supprimer une commande par son id
     public void deleteCommande(String  id) {
