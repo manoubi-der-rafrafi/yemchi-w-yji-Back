@@ -21,8 +21,11 @@ public interface UtilisateurRepository extends MongoRepository<Utilisateur, Stri
     Optional<Utilisateur> findFirstByIdInAndEmailIgnoreCase(List<String> ids, String email);
     @Query("{ '_id': { $in: ?0 }, $or: [ { 'nom': { $regex: ?1 } }, { 'prenom': { $regex: ?1 } } ] }")
 List<Utilisateur> findByIdInAndNomOrPrenomRegex(List<String> ids, String regex);
-  @Query("{ '_id': { $in: ?0 }, 'nom': { $regex: ?1, $options: 'i' }, 'prenom': { $regex: ?2, $options: 'i' } }")
-  List<Utilisateur> searchByIdsAndNomAndPrenomRegex(List<String> ids, String nomRegex, String prenomRegex);
+@Query("{ '_id': { $in: ?0 }, " +
+       "  'nom':    { $regex: ?1, $options: 'i' }, " +
+       "  'prenom': { $regex: ?2, $options: 'i' } " +
+       "}")
+List<Utilisateur> searchByIdsAndNomAndPrenomRegex(List<String> ids, String nomRegex, String prenomRegex);
   // ----- Dérivation de requête (fonctionne en Mongo & JPA) -----
   List<Utilisateur> findByIdInAndNomContainingIgnoreCase(List<String> ids, String nom);
   List<Utilisateur> findByIdInAndPrenomContainingIgnoreCase(List<String> ids, String prenom);
@@ -39,7 +42,10 @@ List<Utilisateur> findByIdInAndNomOrPrenomRegex(List<String> ids, String regex);
   );
 
   // ----- (Optionnel Mongo uniquement) Version regex plus souple -----
-  @Query("{ '_id': { $in: ?0 }, $or: [ { 'nom': { $regex: ?1, $options: 'i' } }, { 'prenom': { $regex: ?1, $options: 'i' } } ] }")
-  List<Utilisateur> searchByIdsAndNomOrPrenomRegex(List<String> ids, String qRegex);
+@Query("{ '_id': { $in: ?0 }, $or: [ " +
+       "  { 'nom':    { $regex: ?1, $options: 'i' } }, " +
+       "  { 'prenom': { $regex: ?1, $options: 'i' } } " +
+       "] }")
+List<Utilisateur> searchByIdsAndNomOrPrenomRegex(List<String> ids, String qRegex);
 
 }
