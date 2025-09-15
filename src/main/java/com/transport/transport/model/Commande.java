@@ -8,11 +8,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.annotation.JsonNaming;
-
 @Document(collection = "commande")
-@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class) // accepte JSON snake_case (ex: localisation_depart)
 public class Commande {
 
     @Id
@@ -25,7 +21,7 @@ public class Commande {
     private LocalDateTime dateDebut;
     private LocalDateTime dateFin;
 
-    /** Date de création/demande de commande (auto si @EnableMongoAuditing est activé) */
+    /** Date de création/demande de commande */
     @CreatedDate
     private LocalDateTime dateDemande;
 
@@ -36,9 +32,6 @@ public class Commande {
     private ModePaiement modePaiement;
 
     private String instructions;
-
-    /** Téléphone de départ (ajouté) */
-    private String telDepart;
 
     /** Références par ID plutôt que @ManyToOne */
     private String clientId;        // Utilisateur.id
@@ -54,16 +47,11 @@ public class Commande {
         en_cours,
         livree,
         confirmer,
-        envoyee
+        envoyee  
     }
+    public enum ModePaiement { cash, en_ligne, carte }
 
-    public enum ModePaiement {
-        cash,
-        en_ligne,
-        carte
-    }
-
-    // --- Getters / Setters ---
+    // --- Getters/Setters ---
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -93,9 +81,6 @@ public class Commande {
 
     public String getInstructions() { return instructions; }
     public void setInstructions(String instructions) { this.instructions = instructions; }
-
-    public String getTelDepart() { return telDepart; }
-    public void setTelDepart(String telDepart) { this.telDepart = telDepart; }
 
     public String getClientId() { return clientId; }
     public void setClientId(String clientId) { this.clientId = clientId; }
