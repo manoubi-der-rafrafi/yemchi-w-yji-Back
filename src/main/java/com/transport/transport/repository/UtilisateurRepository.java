@@ -14,5 +14,9 @@ public interface UtilisateurRepository extends MongoRepository<Utilisateur, Stri
     Optional<Utilisateur> findByEmailIgnoreCase(String email);
     @Query("{ '_id': { $in: ?0 }, 'telephone': { $regex: ?1, $options: 'i' } }")
     List<Utilisateur> findByIdInAndTelephoneRegex(List<String> ids, String telephoneRegex);
-    
+    // 🔎 recherche PARTIELLE (contient, insensible à la casse) parmi un set d'IDs
+    List<Utilisateur> findByIdInAndEmailContainingIgnoreCase(List<String> ids, String emailPart);
+
+    // 🔎 recherche EXACTE (insensible à la casse) parmi un set d'IDs
+    Optional<Utilisateur> findFirstByIdInAndEmailIgnoreCase(List<String> ids, String email);
 }

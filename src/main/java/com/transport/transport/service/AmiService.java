@@ -151,4 +151,40 @@ public class AmiService {
         // 4) chercher les Utilisateur dont _id ∈ friendIds ET telephone ~ regex
         return utilisateurRepository.findByIdInAndTelephoneRegex(friendIds, regex);
     }
+    /**
+     * Recherche par e-mail parmi les amis ACCEPTÉS de meId.
+     * @param meId   id Mongo de l'utilisateur courant
+     * @param q      terme de recherche (email partiel ou complet)
+     * @param exact  si true => match exact (ignore case), sinon "contient" (ignore case)
+     */
+    public List<Utilisateur> searchMyFriendsByEmail(String meId, String q, boolean exact) {
+        if (q == null || q.isBlank()) return List.of();
+
+        // 1) récupérer toutes les relations ACCEPTÉES du user
+        var relations = amiRepository.findAcceptedRelationsOf(meId);
+
+        // 2) extraire l'ID de l'ami (autre côté)
+        var friendIds = relations.stream()
+                .map(a -> {
+                    if (meId.equals(a.getDemandeurId())) return a.getRecepteurId();
+                    if (meId.equals(a.getRecepteurId())) return a.getDemandeurId();
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        if (friendIds.isEmpty()) return List.of();
+
+        // 3) requête utilisateurs parmi ces IDs
+        if (exact) {
+            return utilisateurRepository
+                    .findFirstByIdInAndEmailIgnoreCase(friendIds, q)
+                    .map(List::of)
+                    .orElse(List.of());
+        } else {
+            return utilisateurRepository.findByIdInAndEmailContainingIgnoreCase(friendIds, q);
+        }
+    }
+    
 }

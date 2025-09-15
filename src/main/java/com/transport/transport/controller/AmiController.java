@@ -91,4 +91,12 @@ public class AmiController {
         List<Utilisateur> res = amiService.searchMyFriendsByNumero(meId, numero);
         return ResponseEntity.ok(res); // renvoie [] si vide (200)
     }
+    @GetMapping("/search/mes-amis/email")
+    public ResponseEntity<List<Utilisateur>> searchMyFriendsByEmail(
+            @RequestParam("me") String meId,
+            @RequestParam("q")  String emailQuery,
+            @RequestParam(value = "exact", defaultValue = "false") boolean exact
+    ) {
+        return ResponseEntity.ok(amiService.searchMyFriendsByEmail(meId, emailQuery, exact));
+    }
 }
