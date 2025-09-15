@@ -42,4 +42,5 @@ public interface AmiRepository extends MongoRepository<Ami, String> {
         if (Objects.equals(a.getRecepteurId(), me)) return a.getDemandeurId();
         return null;
     }
+    
 }

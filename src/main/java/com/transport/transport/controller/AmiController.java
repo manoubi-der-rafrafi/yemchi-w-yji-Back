@@ -99,4 +99,40 @@ public class AmiController {
     ) {
         return ResponseEntity.ok(amiService.searchMyFriendsByEmail(meId, emailQuery, exact));
     }
+    @GetMapping("/search/mes-amis/nom")
+  public ResponseEntity<List<Utilisateur>> searchMesAmisByNom(
+      @RequestParam("me") String me,
+      @RequestParam("q") String q
+  ) {
+    return ResponseEntity.ok(amiService.searchMesAmisByNom(me, q));
+  }
+
+  // /api/amis/search/mes-amis/prenom?me=ID&q=partiePrenom
+  @GetMapping("/search/mes-amis/prenom")
+  public ResponseEntity<List<Utilisateur>> searchMesAmisByPrenom(
+      @RequestParam("me") String me,
+      @RequestParam("q") String q
+  ) {
+    return ResponseEntity.ok(amiService.searchMesAmisByPrenom(me, q));
+  }
+
+  // /api/amis/search/mes-amis/nom-prenom?me=ID&q=terme   (NOM OU PRENOM)
+  @GetMapping("/search/mes-amis/nom-prenom")
+  public ResponseEntity<List<Utilisateur>> searchMesAmisByNomOrPrenom(
+      @RequestParam("me") String me,
+      @RequestParam("q") String q
+  ) {
+    return ResponseEntity.ok(amiService.searchMesAmisByNomOrPrenom(me, q));
+  }
+
+  // (Optionnel) /api/amis/search/mes-amis/nom-et-prenom?me=ID&nom=...&prenom=...
+  @GetMapping("/search/mes-amis/nom-et-prenom")
+  public ResponseEntity<List<Utilisateur>> searchMesAmisByNomAndPrenom(
+      @RequestParam("me") String me,
+      @RequestParam("nom") String nom,
+      @RequestParam("prenom") String prenom
+  ) {
+    return ResponseEntity.ok(amiService.searchMesAmisByNomAndPrenom(me, nom, prenom));
+  }
+
 }

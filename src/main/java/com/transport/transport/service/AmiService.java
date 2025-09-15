@@ -1,5 +1,7 @@
 package com.transport.transport.service;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -186,5 +188,49 @@ public class AmiService {
             return utilisateurRepository.findByIdInAndEmailContainingIgnoreCase(friendIds, q);
         }
     }
-    
+    private List<String> getMesAmisIds(String me) {
+    List<Ami> liens = amiRepository.findAcceptedRelationsOf(me);
+    Set<String> ids = new LinkedHashSet<>();
+    for (Ami a : liens) {
+        if (Objects.equals(a.getDemandeurId(), me)) {
+            ids.add(a.getRecepteurId());
+        } else if (Objects.equals(a.getRecepteurId(), me)) {
+            ids.add(a.getDemandeurId());
+        }
+    }
+    return new ArrayList<>(ids);
+}
+
+
+  // Recherche sur NOM (dans mes amis)
+  public List<Utilisateur> searchMesAmisByNom(String me, String q) {
+    List<String> ids = getMesAmisIds(me);
+    if (ids.isEmpty()) return Collections.emptyList();
+    return utilisateurRepository.findByIdInAndNomContainingIgnoreCase(ids, q);
+  }
+
+  // Recherche sur PRENOM (dans mes amis)
+  public List<Utilisateur> searchMesAmisByPrenom(String me, String q) {
+    List<String> ids = getMesAmisIds(me);
+    if (ids.isEmpty()) return Collections.emptyList();
+    return utilisateurRepository.findByIdInAndPrenomContainingIgnoreCase(ids, q);
+  }
+
+  // Recherche sur NOM OU PRENOM (un seul champ "q")
+  public List<Utilisateur> searchMesAmisByNomOrPrenom(String me, String q) {
+    List<String> ids = getMesAmisIds(me);
+    if (ids.isEmpty()) return Collections.emptyList();
+    return utilisateurRepository
+        .findByIdInAndNomContainingIgnoreCaseOrIdInAndPrenomContainingIgnoreCase(ids, q, ids, q);
+    // (ou la version regex Mongo) utilisateurRepository.searchByIdsAndNomOrPrenomRegex(ids, q);
+  }
+
+  // Recherche sur NOM ET PRENOM (deux champs)
+  public List<Utilisateur> searchMesAmisByNomAndPrenom(String me, String nom, String prenom) {
+    List<String> ids = getMesAmisIds(me);
+    if (ids.isEmpty()) return Collections.emptyList();
+    return utilisateurRepository
+        .findByIdInAndNomContainingIgnoreCaseAndPrenomContainingIgnoreCase(ids, nom, prenom);
+    // (ou la version regex Mongo) utilisateurRepository.searchByIdsAndNomAndPrenomRegex(ids, nom, prenom);
+  }
 }
