@@ -2,6 +2,7 @@ package com.transport.transport.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -40,7 +41,14 @@ public class Commande {
     private LocalDateTime majLe;
 
     // --- Enums ---
-    public enum Statut { en_attente, en_cours, livree, annulee, confirmer }
+    public enum Statut {
+        annulee,
+        en_attente,
+        en_cours,
+        livree,
+        confirmer,
+        envoyee  
+    }
     public enum ModePaiement { cash, en_ligne, carte }
 
     // --- Getters/Setters ---
