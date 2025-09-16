@@ -45,26 +45,25 @@ public class CommandeService {
     }
 
     // Mettre à jour une commande existante
-    public Commande updateCommande(String  id, Commande commandeDetails) {
-        Optional<Commande> optionalCommande = commandeRepository.findById(id);
-        if (optionalCommande.isPresent()) {
-            Commande commande = optionalCommande.get();
-            // Met à jour les champs ici selon besoin
-            commande.setLocalisationDepart(commandeDetails.getLocalisationDepart());
-            commande.setDestination(commandeDetails.getDestination());
-            commande.setDateDebut(commandeDetails.getDateDebut());
-            commande.setDateFin(commandeDetails.getDateFin());
-            commande.setDateDemande(commandeDetails.getDateDemande());
-            commande.setStatut(commandeDetails.getStatut());
-            commande.setPrix(commandeDetails.getPrix());
-            commande.setModePaiement(commandeDetails.getModePaiement());
-            commande.setInstructions(commandeDetails.getInstructions());
-            commande.setClientId(commandeDetails.getClientId());
-            commande.setTransporteurId(commandeDetails.getTransporteurId());
+    public Commande updateCommande(String id, Commande details) {
+        return commandeRepository.findById(id).map(commande -> {
+            // copie EXPLICITE de tous les champs que tu veux rendre modifiables
+            commande.setLocalisationDepart(details.getLocalisationDepart());
+            commande.setDestination(details.getDestination());
+            commande.setDateDebut(details.getDateDebut());
+            commande.setDateFin(details.getDateFin());
+            commande.setDateDemande(details.getDateDemande());
+            commande.setStatut(details.getStatut());
+            commande.setPrix(details.getPrix());
+            commande.setModePaiement(details.getModePaiement());
+            commande.setInstructions(details.getInstructions());
+
+            commande.setTelDepart(details.getTelDepart());            // ✅ ajouté
+            commande.setClientId(details.getClientId());              // ✅ s’assure que ça se copie
+            commande.setTransporteurId(details.getTransporteurId());
+
             return commandeRepository.save(commande);
-        } else {
-            return null; // ou tu peux gérer une exception personnalisée
-        }
+        }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
 
     // Supprimer une commande par son id

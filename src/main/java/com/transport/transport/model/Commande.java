@@ -8,7 +8,12 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.annotation.JsonNaming;
+
 @Document(collection = "commande")
+@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class) // accepte localisation_depart, mode_paiement, date_debut, etc.
 public class Commande {
 
     @Id
@@ -21,21 +26,29 @@ public class Commande {
     private LocalDateTime dateDebut;
     private LocalDateTime dateFin;
 
-    /** Date de création/demande de commande */
+    /** Date de création/demande de commande (nécessite @EnableMongoAuditing) */
     @CreatedDate
     private LocalDateTime dateDemande;
 
     private Statut statut;
-
     private BigDecimal prix;
-
     private ModePaiement modePaiement;
-
     private String instructions;
 
+    /** Téléphone au départ : accepte "tel_depart" OU "telDepart" */
+    @JsonAlias({ "tel_depart", "telDepart" })
+    private String telDepart;
+
     /** Références par ID plutôt que @ManyToOne */
-    private String clientId;        // Utilisateur.id
-    private String transporteurId;  // Utilisateur.id
+    // clientId : le front envoie souvent "clientId" (camel), mais avec @JsonNaming il attend "client_id"
+    // => on accepte les deux grâce à JsonAlias
+    @JsonAlias({ "client_id", "clientId" })
+    private String clientId;
+
+    // Le front t’envoie "id_transporteur" (non standard); SnakeCase produirait "transporteur_id"
+    // => accepte "id_transporteur" et "transporteur_id"
+    @JsonAlias({ "id_transporteur", "transporteur_id" })
+    private String transporteurId;
 
     @LastModifiedDate
     private LocalDateTime majLe;
@@ -47,11 +60,16 @@ public class Commande {
         en_cours,
         livree,
         confirmer,
-        envoyee  
+        envoyee
     }
-    public enum ModePaiement { cash, en_ligne, carte }
 
-    // --- Getters/Setters ---
+    public enum ModePaiement {
+        cash,
+        en_ligne,
+        carte
+    }
+
+    // --- Getters / Setters ---
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
@@ -81,6 +99,9 @@ public class Commande {
 
     public String getInstructions() { return instructions; }
     public void setInstructions(String instructions) { this.instructions = instructions; }
+
+    public String getTelDepart() { return telDepart; }
+    public void setTelDepart(String telDepart) { this.telDepart = telDepart; }
 
     public String getClientId() { return clientId; }
     public void setClientId(String clientId) { this.clientId = clientId; }
