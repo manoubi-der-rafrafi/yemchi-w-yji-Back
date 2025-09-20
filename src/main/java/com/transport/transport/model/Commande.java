@@ -9,6 +9,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
 
@@ -39,6 +40,8 @@ public class Commande {
     @JsonAlias({ "tel_depart", "telDepart" })
     private String telDepart;
 
+    @JsonAlias({ "tel_arrivee", "telArrivee" })
+    private String telArrivee;
     /** Références par ID plutôt que @ManyToOne */
     // clientId : le front envoie souvent "clientId" (camel), mais avec @JsonNaming il attend "client_id"
     // => on accepte les deux grâce à JsonAlias
@@ -52,7 +55,8 @@ public class Commande {
 
     @LastModifiedDate
     private LocalDateTime majLe;
-
+    @JsonAlias({ "id_amie", "idAmie" })
+    private String idAmie;
     // --- Enums ---
     public enum Statut {
         annulee,
@@ -63,11 +67,14 @@ public class Commande {
         envoyee
     }
 
-    public enum ModePaiement {
-        cash,
-        en_ligne,
-        carte
-    }
+    /**
+ * Moment / lieu du paiement.
+ */
+public enum ModePaiement {
+    @JsonProperty("en_ligne") EN_LIGNE,
+    @JsonProperty("depart")   DEPART,
+    @JsonProperty("arrivee")  ARRIVEE
+}
 
     // --- Getters / Setters ---
     public String getId() { return id; }
@@ -103,6 +110,9 @@ public class Commande {
     public String getTelDepart() { return telDepart; }
     public void setTelDepart(String telDepart) { this.telDepart = telDepart; }
 
+    public String getTelArrivee() { return telArrivee; }
+    public void setTelArrivee(String telArrivee) { this.telArrivee = telArrivee; }
+
     public String getClientId() { return clientId; }
     public void setClientId(String clientId) { this.clientId = clientId; }
 
@@ -111,4 +121,10 @@ public class Commande {
 
     public LocalDateTime getMajLe() { return majLe; }
     public void setMajLe(LocalDateTime majLe) { this.majLe = majLe; }
+    public String getIdAmie() {
+        return idAmie;
+    }
+    public void setIdAmie(String idAmie) {
+        this.idAmie = idAmie;
+    }
 }

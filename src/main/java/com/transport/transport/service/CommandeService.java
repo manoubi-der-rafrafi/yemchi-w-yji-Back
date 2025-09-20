@@ -15,7 +15,7 @@ import com.transport.transport.repository.UtilisateurRepository;
 public class CommandeService {
 
     @Autowired
-    private CommandeRepository commandeRepository;
+    private final CommandeRepository commandeRepository;
     private final UtilisateurRepository utilisateurRepository;
 
     public CommandeService(CommandeRepository commandeRepository, UtilisateurRepository utilisateurRepository) {
@@ -61,6 +61,8 @@ public class CommandeService {
             commande.setTelDepart(details.getTelDepart());            // ✅ ajouté
             commande.setClientId(details.getClientId());              // ✅ s’assure que ça se copie
             commande.setTransporteurId(details.getTransporteurId());
+            commande.setIdAmie(details.getIdAmie());
+            commande.setTelArrivee(details.getTelArrivee());
 
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
