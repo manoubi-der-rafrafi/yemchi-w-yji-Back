@@ -3,7 +3,7 @@ package com.transport.transport.model;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-
+import java.time.LocalDateTime;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -33,6 +33,8 @@ public class Utilisateur {
     @CreatedDate
     private LocalDateTime dateCreation;
 
+    private LocalDateTime lastSeen;
+    private boolean online;
     public enum Role { client, transporteur, admin }
     public enum Statut { actif, inactif, banni }
 
@@ -74,4 +76,9 @@ public class Utilisateur {
 
     public LocalDateTime getDateCreation() { return dateCreation; }
     public void setDateCreation(LocalDateTime dateCreation) { this.dateCreation = dateCreation; }
+    public LocalDateTime getLastSeen() { return lastSeen; }
+    public void setLastSeen(LocalDateTime lastSeen) { this.lastSeen = lastSeen; }
+    public boolean isOnline() { return online; }
+    public void setOnline(boolean online) { this.online = online; }
+
 }

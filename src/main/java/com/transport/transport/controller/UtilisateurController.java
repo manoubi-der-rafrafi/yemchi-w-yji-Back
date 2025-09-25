@@ -1,11 +1,24 @@
 package com.transport.transport.controller;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,22 +42,65 @@ public class UtilisateurController {
     private UtilisateurRepository utilisateurRepository;
     private UtilisateurService utilisateurService;
     private final Cloudinary cloudinary;
+    private final AuthenticationManager authManager;
+  private final JwtEncoder jwtEncoder;
+  private final PasswordEncoder passwordEncoder;
     // LOGIN : POST /api/utilisateur/login
     private final String uploadBaseDir = "C:/Users/Lenovo/Desktop/angular/transport/public/profil";
-    public UtilisateurController(UtilisateurService utilisateurService, Cloudinary cloudinary) {
+    public UtilisateurController(UtilisateurService utilisateurService, Cloudinary cloudinary,
+    AuthenticationManager authManager,
+      JwtEncoder jwtEncoder,
+      PasswordEncoder passwordEncoder) {
         this.utilisateurService = utilisateurService;
         this.cloudinary = cloudinary;
+        this.authManager = authManager;
+    this.jwtEncoder = jwtEncoder;
+    this.passwordEncoder = passwordEncoder;
+
     }
 
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Utilisateur utilisateur) {
-        Utilisateur user = utilisateurRepository.findByEmail(utilisateur.getEmail());
-        if (user == null || !user.getMotDePasse().equals(utilisateur.getMotDePasse())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
-        }
-        return ResponseEntity.ok(user);
+  public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+    try {
+      // 1) Authentifier via AuthenticationManager (utilise BCrypt de ta SecurityConfig)
+      Authentication auth = authManager.authenticate(
+          new UsernamePasswordAuthenticationToken(req.email(), req.motDePasse())
+      );
+
+      // 2) Charger l'utilisateur pour la réponse
+      Utilisateur user = utilisateurRepository.findByEmailIgnoreCase(req.email())
+          .orElse(null);
+      if (user == null) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
+      }
+
+      // 3) Construire un JWT
+      Instant now = Instant.now();
+      long expiry = 3600; // 1h
+      var claims = JwtClaimsSet.builder()
+          .issuer("transport")
+          .issuedAt(now)
+          .expiresAt(now.plusSeconds(expiry))
+          .subject(req.email())
+          .claim("uid", user.getId())
+          .claim("roles", auth.getAuthorities().stream()
+              .map(GrantedAuthority::getAuthority).toList())
+          .build();
+
+      var header = JwsHeader.with(MacAlgorithm.HS256).build();
+      String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+
+      // 4) Ne jamais exposer le mot de passe
+      user.setMotDePasse(null);
+
+      return ResponseEntity.ok(new LoginResponse(token, user));
+    } catch (BadCredentialsException e) {
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
     }
+  }
+public static record LoginRequest(String email, String motDePasse) {}
+  public static record LoginResponse(String token, Utilisateur user) {}
 
     // Récupérer un utilisateur par ID (GET /api/utilisateur/id/1)
     @GetMapping("/id/{id}")
@@ -62,10 +118,45 @@ public class UtilisateurController {
         return ResponseEntity.ok(utilisateurRepository.findAll());
     }
     @PostMapping("/register")
-    public Utilisateur createUtilisateur(@RequestBody Utilisateur utilisateur) {
-        // tu peux ajouter des vérifications ici (ex: email déjà utilisé)
-        return utilisateurService.saveUtilisateur(utilisateur);
+  public ResponseEntity<?> register(@RequestBody Utilisateur payload) {
+    // Email unique ?
+    if (utilisateurRepository.findByEmailIgnoreCase(payload.getEmail()).isPresent()) {
+      return ResponseEntity.status(HttpStatus.CONFLICT).body("Email déjà utilisé");
     }
+
+    // Encoder le mot de passe
+    if (payload.getMotDePasse() == null || payload.getMotDePasse().isBlank()) {
+      return ResponseEntity.badRequest().body("Mot de passe requis");
+    }
+    payload.setMotDePasse(passwordEncoder.encode(payload.getMotDePasse()));
+
+    // Valeurs par défaut (statut/role), gérées aussi par UtilisateurService.saveUtilisateur(...)
+    if (payload.getStatut() == null) {
+      payload.setStatut(Utilisateur.Statut.actif);
+    }
+    if (payload.getRole() == null) {
+      payload.setRole(Utilisateur.Role.client);
+    }
+
+    Utilisateur saved = utilisateurRepository.save(payload);
+
+    // Générer un token pour auto-login (facultatif)
+    Instant now = Instant.now();
+    long expiry = 3600;
+    var claims = JwtClaimsSet.builder()
+        .issuer("transport")
+        .issuedAt(now)
+        .expiresAt(now.plusSeconds(expiry))
+        .subject(saved.getEmail())
+        .claim("uid", saved.getId())
+        .claim("roles", List.of("ROLE_" + saved.getRole().name().toUpperCase()))
+        .build();
+    var header = JwsHeader.with(MacAlgorithm.HS256).build();
+    String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+
+    saved.setMotDePasse(null);
+    return ResponseEntity.status(HttpStatus.CREATED).body(new LoginResponse(token, saved));
+  }
     @PutMapping("/{id}")
     public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,
                                                     @RequestBody Utilisateur updated) {

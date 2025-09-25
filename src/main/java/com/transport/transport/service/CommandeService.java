@@ -82,5 +82,7 @@ public class CommandeService {
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
-
+    public List<Commande> getByIdAmie(String idAmie) {
+        return commandeRepository.findByIdAmie(idAmie);
+    }
 }

@@ -1,5 +1,6 @@
 package com.transport.transport.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,5 +48,6 @@ List<Utilisateur> searchByIdsAndNomAndPrenomRegex(List<String> ids, String nomRe
        "  { 'prenom': { $regex: ?1, $options: 'i' } } " +
        "] }")
 List<Utilisateur> searchByIdsAndNomOrPrenomRegex(List<String> ids, String qRegex);
+List<Utilisateur> findAllByOnlineIsTrueAndLastSeenBefore(LocalDateTime cutoff);
 
 }
