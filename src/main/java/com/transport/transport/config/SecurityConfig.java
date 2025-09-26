@@ -3,6 +3,7 @@ package com.transport.transport.config;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Objects;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -21,7 +22,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -34,6 +35,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
 
 @Configuration
@@ -43,20 +45,40 @@ public class SecurityConfig {
   @Value("${app.jwt.secret}")
   private String secret;
 
+  /* =========================
+     PasswordEncoder
+     - Delegating : supporte {bcrypt}... ou hash $2a$... sans préfixe
+     ========================= */
   @Bean
   PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder(); // hash sécurisé
+    return PasswordEncoderFactories.createDelegatingPasswordEncoder();
   }
 
-  /** On authentifie par email (username = email) */
+  /* =========================
+     UserDetailsService
+     - username = email
+     - disabled si statut != actif
+     - rôle par défaut "CLIENT" si null (sécurité)
+     ========================= */
   @Bean
   UserDetailsService userDetailsService(UtilisateurRepository repo) {
     return (String username) -> repo.findByEmailIgnoreCase(username)
-      .map(u -> User.withUsername(u.getEmail())
-          .password(u.getMotDePasse()) // doit être {bcrypt}<hash>
-          .roles(u.getRole().name().toUpperCase())
-          .disabled(u.getStatut() != com.transport.transport.model.Utilisateur.Statut.actif)
-          .build())
+      .map(u -> {
+        String role = "CLIENT";
+        if (u.getRole() != null) {
+          role = u.getRole().name(); // ex: ROLE_CLIENT ou CLIENT selon ton enum
+        }
+        // Normalise en format attendu par .roles(...) => SANS "ROLE_" prefix
+        role = role.toUpperCase().replaceFirst("^ROLE_", "");
+
+        boolean disabled = !Objects.equals(u.getStatut(), Utilisateur.Statut.actif);
+
+        return User.withUsername(u.getEmail())
+          .password(u.getMotDePasse()) // hash en base (avec ou sans {bcrypt}, OK)
+          .roles(role)                 // donnera ROLE_<role>
+          .disabled(disabled)
+          .build();
+      })
       .orElseThrow(() -> new UsernameNotFoundException("Utilisateur introuvable: " + username));
   }
 
@@ -73,7 +95,9 @@ public class SecurityConfig {
     return cfg.getAuthenticationManager();
   }
 
-  // ===== JWT signer/decoder (HS256) =====
+  /* =========================
+     JWT signer/decoder (HS256)
+     ========================= */
   @Bean
   JwtEncoder jwtEncoder() {
     SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
@@ -86,17 +110,21 @@ public class SecurityConfig {
     return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
   }
 
-  // ===== CORS pour Angular local =====
+  /* =========================
+     CORS (UNIQUE SOURCE DE VÉRITÉ)
+     - Autorise localhost:4200, 127.0.0.1:4200 et ton front Vercel
+     ========================= */
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cfg = new CorsConfiguration();
     cfg.setAllowedOrigins(List.of(
-      "http://localhost:4200",
-      "http://127.0.0.1:4200",
-      "https://yemchi-w-yji-front.vercel.app"
-  ));
-    cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        "http://localhost:4200",
+        "http://127.0.0.1:4200",
+        "https://yemchi-w-yji-front.vercel.app"
+    ));
+    cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
     cfg.setAllowedHeaders(List.of("Authorization","Content-Type","X-Requested-With"));
+    cfg.setExposedHeaders(List.of("Authorization","Location"));
     cfg.setAllowCredentials(true);
     cfg.setMaxAge(3600L);
 
@@ -105,32 +133,34 @@ public class SecurityConfig {
     return source;
   }
 
+  /* =========================
+     Security Filter Chain
+     ========================= */
   @Bean
-SecurityFilterChain security(HttpSecurity http, UpdateLastSeenFilter lastSeenFilter) throws Exception {
-  http
-    .csrf(csrf -> csrf.disable())
-    .cors(Customizer.withDefaults())
-    .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-    .authorizeHttpRequests(auth -> auth
-        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-        .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll() // ✅
-        .requestMatchers("/auth/**").permitAll()
-        .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").permitAll()
-        .requestMatchers(HttpMethod.GET,  "/api/presence/**").permitAll()
-        .requestMatchers("/api/produits/**").permitAll()
-        .requestMatchers("/api/utilisateur/register").permitAll()
-        .requestMatchers("/api/commandes/**").authenticated()
-        .anyRequest().authenticated()
-    )
+  SecurityFilterChain security(HttpSecurity http, UpdateLastSeenFilter lastSeenFilter) throws Exception {
+    http
+      .csrf(csrf -> csrf.disable())
+      .cors(Customizer.withDefaults())
+      .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+      .authorizeHttpRequests(auth -> auth
+          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+          .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
+          .requestMatchers("/auth/**").permitAll()
+          .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").permitAll()
+          .requestMatchers(HttpMethod.GET,  "/api/presence/**").permitAll()
+          .requestMatchers("/api/produits/**").permitAll()
+          .requestMatchers("/api/utilisateur/register").permitAll()
+          .requestMatchers("/api/commandes/**").authenticated()
+          .anyRequest().authenticated()
+      )
+      .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
+    // Ne pas perturber l'auth : exécute après que le SecurityContext soit établi
+    http.addFilterAfter(
+      lastSeenFilter,
+      org.springframework.security.web.context.SecurityContextHolderFilter.class
+    );
 
-    .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
-
-  http.addFilterAfter(
-    lastSeenFilter,
-    org.springframework.security.web.context.SecurityContextHolderFilter.class
-  );
-
-  return http.build();
-}
+    return http.build();
+  }
 }
