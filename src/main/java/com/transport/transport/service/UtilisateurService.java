@@ -24,7 +24,8 @@ public class UtilisateurService {
 
   private final UtilisateurRepository repo;
   private final PasswordEncoder passwordEncoder;
-
+  
+  
   public UtilisateurService(UtilisateurRepository repo, PasswordEncoder passwordEncoder) {
     this.repo = repo;
     this.passwordEncoder = passwordEncoder;

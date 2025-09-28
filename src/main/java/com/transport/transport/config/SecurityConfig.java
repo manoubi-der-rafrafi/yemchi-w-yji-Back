@@ -2,8 +2,9 @@
 package com.transport.transport.config;
 
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -22,7 +23,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -50,9 +52,16 @@ public class SecurityConfig {
      - Delegating : supporte {bcrypt}... ou hash $2a$... sans préfixe
      ========================= */
   @Bean
-  PasswordEncoder passwordEncoder() {
-    return PasswordEncoderFactories.createDelegatingPasswordEncoder();
-  }
+PasswordEncoder passwordEncoder() {
+  String id = "bcrypt";
+  Map<String, PasswordEncoder> encoders = new HashMap<>();
+  encoders.put(id, new BCryptPasswordEncoder());
+  DelegatingPasswordEncoder d = new DelegatingPasswordEncoder(id, encoders);
+  // ⬇️ Permettre les hashes SANS préfixe (ex: $2a$...) lors des matches()
+  d.setDefaultPasswordEncoderForMatches(encoders.get(id));
+  return d;
+}
+
 
   /* =========================
      UserDetailsService
@@ -61,26 +70,27 @@ public class SecurityConfig {
      - rôle par défaut "CLIENT" si null (sécurité)
      ========================= */
   @Bean
-  UserDetailsService userDetailsService(UtilisateurRepository repo) {
-    return (String username) -> repo.findByEmailIgnoreCase(username)
-      .map(u -> {
-        String role = "CLIENT";
-        if (u.getRole() != null) {
-          role = u.getRole().name(); // ex: ROLE_CLIENT ou CLIENT selon ton enum
-        }
-        // Normalise en format attendu par .roles(...) => SANS "ROLE_" prefix
-        role = role.toUpperCase().replaceFirst("^ROLE_", "");
+UserDetailsService userDetailsService(UtilisateurRepository repo) {
+  return (String username) -> repo.findByEmailIgnoreCase(username)
+    .map(u -> {
+      String role = (u.getRole() != null) ? u.getRole().name() : "CLIENT";
+      role = role.toUpperCase().replaceFirst("^ROLE_", ""); // .roles() ajoute ROLE_
 
-        boolean disabled = !Objects.equals(u.getStatut(), Utilisateur.Statut.actif);
+      // Ne désactive que les comptes bannis. "inactif" = présence, pas un blocage d'auth.
+      boolean disabled = (u.getStatut() == Utilisateur.Statut.banni);
 
-        return User.withUsername(u.getEmail())
-          .password(u.getMotDePasse()) // hash en base (avec ou sans {bcrypt}, OK)
-          .roles(role)                 // donnera ROLE_<role>
+      return User.withUsername(u.getEmail())
+          .password(u.getMotDePasse())
+          .roles(role)
+          .accountExpired(false)
+          .accountLocked(false)
+          .credentialsExpired(false)
           .disabled(disabled)
           .build();
-      })
-      .orElseThrow(() -> new UsernameNotFoundException("Utilisateur introuvable: " + username));
-  }
+    })
+    .orElseThrow(() -> new UsernameNotFoundException("Utilisateur introuvable: " + username));
+}
+
 
   @Bean
   DaoAuthenticationProvider daoAuthProvider(UserDetailsService uds, PasswordEncoder pe) {
