@@ -64,7 +64,8 @@ public class Commande {
         en_cours,
         livree,
         confirmer,
-        envoyee
+        envoyee,
+        accepter
     }
 
     /**
