@@ -90,4 +90,10 @@ public class CommandeController {
     public List<Commande> getByIdAmie(@PathVariable String idAmie) {
         return commandeService.getByIdAmie(idAmie);
     }
+    @GetMapping("/ami/{idAmie}/count")
+    public ResponseEntity<Integer> countCommandesByIdAmie(@PathVariable String idAmie) {
+        int count = commandeService.countCommandesByIdAmie(idAmie);
+        return ResponseEntity.ok(count);
+    }
+
 }

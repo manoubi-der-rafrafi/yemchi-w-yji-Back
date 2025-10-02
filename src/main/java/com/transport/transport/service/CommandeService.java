@@ -85,4 +85,7 @@ public class CommandeService {
     public List<Commande> getByIdAmie(String idAmie) {
         return commandeRepository.findByIdAmie(idAmie);
     }
+    public int countCommandesByIdAmie(String idAmie) {
+        return commandeRepository.countByIdAmie(idAmie);
+    }
 }
