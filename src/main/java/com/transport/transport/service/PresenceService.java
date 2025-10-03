@@ -78,8 +78,7 @@ public class PresenceService {
           if (u.isOnline() != computed) {
             u.setOnline(computed);
             if (u.getStatut() != Statut.banni) {
-              u.setStatut(Statut.actif);
-              
+              u.setStatut(computed ? Statut.actif : Statut.inactif);
             }
             repo.save(u);
           }
@@ -109,11 +108,9 @@ public class PresenceService {
       u.setOnline(false);
       if (u.getStatut() != Statut.banni) {
         u.setStatut(Statut.inactif);
-        repo.save(u) ;
       }
     });
     repo.saveAll(toOff);
-    
     log.debug("expireInactives: OFF {}", toOff.stream().map(Utilisateur::getId).toList());
   }
 }
