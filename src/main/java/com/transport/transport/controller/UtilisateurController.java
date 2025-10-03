@@ -77,7 +77,7 @@ public class UtilisateurController {
 
       // 3) Construire un JWT
       Instant now = Instant.now();
-      long expiry = 3600; // 1h
+      long expiry = 604800; // 1h
       var claims = JwtClaimsSet.builder()
           .issuer("transport")
           .issuedAt(now)
@@ -142,7 +142,7 @@ public static record LoginRequest(String email, String motDePasse) {}
 
     // Générer un token pour auto-login (facultatif)
     Instant now = Instant.now();
-    long expiry = 3600;
+    long expiry = 604800;
     var claims = JwtClaimsSet.builder()
         .issuer("transport")
         .issuedAt(now)

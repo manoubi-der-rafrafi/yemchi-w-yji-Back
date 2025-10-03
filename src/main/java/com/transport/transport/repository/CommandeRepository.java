@@ -14,5 +14,5 @@ public interface CommandeRepository extends MongoRepository<Commande, String> {
     List<Commande> findByClientIdOrderByDateDemandeDesc(String clientId);
     List<Commande> findByIdAmie(String idAmie);
     int countByIdAmie(String idAmie);
-
+    int countByIdAmieAndStatut(String idAmie, Commande.Statut statut);
 }
