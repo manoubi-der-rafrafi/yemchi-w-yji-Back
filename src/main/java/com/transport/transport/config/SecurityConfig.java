@@ -132,7 +132,8 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
     cfg.setAllowedOriginPatterns(List.of(
         "http://localhost:*",
         "http://127.0.0.1:*",
-        "https://yemchi-w-yji-front.vercel.app"
+        "https://yemchi-w-yji-front.vercel.app",
+        "http://10.0.2.2:5173"
     ));
 
     cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
