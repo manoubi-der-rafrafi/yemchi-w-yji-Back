@@ -127,21 +127,28 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cfg = new CorsConfiguration();
-    cfg.setAllowedOrigins(List.of(
-        "http://localhost:4200",
-        "http://127.0.0.1:4200",
+
+    // Autorise Flutter Web en dev (ports variables) + ton domaine de prod
+    cfg.setAllowedOriginPatterns(List.of(
+        "http://localhost:*",
+        "http://127.0.0.1:*",
         "https://yemchi-w-yji-front.vercel.app"
     ));
-    cfg.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS","PATCH"));
-    cfg.setAllowedHeaders(List.of("Authorization","Content-Type","X-Requested-With"));
+
+    cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
+    cfg.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","X-Requested-With","Origin"));
     cfg.setExposedHeaders(List.of("Authorization","Location"));
-    cfg.setAllowCredentials(true);
+
+    // Avec JWT en header, pas besoin de cookies → false (plus simple)
+    // Mets true seulement si tu utilises des cookies/sessions côté navigateur.
+    cfg.setAllowCredentials(false);
+
     cfg.setMaxAge(3600L);
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", cfg);
     return source;
-  }
+}
 
   /* =========================
      Security Filter Chain
