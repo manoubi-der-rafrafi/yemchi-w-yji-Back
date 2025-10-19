@@ -57,6 +57,11 @@ public class Commande {
     private LocalDateTime majLe;
     @JsonAlias({ "id_amie", "idAmie" })
     private String idAmie;
+
+    private Double latitudeDepart;
+    private Double longitudeDepart;
+    private Double latitudeDestination;
+    private Double longitudeDestination;
     // --- Enums ---
     public enum Statut {
         annulee,
@@ -128,4 +133,16 @@ public enum ModePaiement {
     public void setIdAmie(String idAmie) {
         this.idAmie = idAmie;
     }
+
+    public Double getLatitudeDepart() { return latitudeDepart; }
+    public void setLatitudeDepart(Double latitudeDepart) { this.latitudeDepart = latitudeDepart; }
+
+    public Double getLongitudeDepart() { return longitudeDepart; }
+    public void setLongitudeDepart(Double longitudeDepart) { this.longitudeDepart = longitudeDepart; }
+
+    public Double getLatitudeDestination() { return latitudeDestination; }
+    public void setLatitudeDestination(Double latitudeDestination) { this.latitudeDestination = latitudeDestination; }
+
+    public Double getLongitudeDestination() { return longitudeDestination; }
+    public void setLongitudeDestination(Double longitudeDestination) { this.longitudeDestination = longitudeDestination; }
 }

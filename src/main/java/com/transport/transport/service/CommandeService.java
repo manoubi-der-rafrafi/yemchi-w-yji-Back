@@ -64,6 +64,12 @@ public class CommandeService {
             commande.setIdAmie(details.getIdAmie());
             commande.setTelArrivee(details.getTelArrivee());
 
+            commande.setLatitudeDepart(details.getLatitudeDepart());
+            commande.setLongitudeDepart(details.getLongitudeDepart());
+            commande.setLatitudeDestination(details.getLatitudeDestination());
+            commande.setLongitudeDestination(details.getLongitudeDestination());
+
+
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
