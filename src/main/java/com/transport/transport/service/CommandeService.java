@@ -69,6 +69,8 @@ public class CommandeService {
             commande.setLatitudeDestination(details.getLatitudeDestination());
             commande.setLongitudeDestination(details.getLongitudeDestination());
 
+            commande.setDistanceKm(details.getDistanceKm());
+            commande.setDistanceKm(details.getDistanceKm());
 
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));

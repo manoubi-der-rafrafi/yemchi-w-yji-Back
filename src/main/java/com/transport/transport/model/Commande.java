@@ -62,6 +62,7 @@ public class Commande {
     private Double longitudeDepart;
     private Double latitudeDestination;
     private Double longitudeDestination;
+    private Double distanceKm;
     // --- Enums ---
     public enum Statut {
         annulee,
@@ -145,4 +146,6 @@ public enum ModePaiement {
 
     public Double getLongitudeDestination() { return longitudeDestination; }
     public void setLongitudeDestination(Double longitudeDestination) { this.longitudeDestination = longitudeDestination; }
+    public Double getDistanceKm() { return distanceKm; }
+    public void setDistanceKm(Double distanceKm) { this.distanceKm = distanceKm; }
 }
