@@ -63,6 +63,17 @@ public class Commande {
     private Double latitudeDestination;
     private Double longitudeDestination;
     private Double distanceKm;
+
+    private SousZone sousZoneDepart;
+    private SousZone sousZoneArrivee;
+
+    @com.fasterxml.jackson.annotation.JsonAlias("zonePrincipaleDepart")
+    @com.fasterxml.jackson.annotation.JsonProperty("zone_principale_depart")
+    private Zone zonePrincipaleDepart;
+
+    @com.fasterxml.jackson.annotation.JsonAlias("zonePrincipaleArrivee")
+    @com.fasterxml.jackson.annotation.JsonProperty("zone_principale_arrivee")
+    private Zone zonePrincipaleArrivee;
     // --- Enums ---
     public enum Statut {
         annulee,
@@ -82,6 +93,46 @@ public enum ModePaiement {
     @JsonProperty("depart")   DEPART,
     @JsonProperty("arrivee")  ARRIVEE
 }
+
+// --- Enum pour les grandes zones (régions principales) ---
+public enum Zone {
+    GRAND_TUNIS,
+    COTIER_NORD,
+    CENTRE_EST,
+    SFAX,
+    SUD_EST,
+    INTERIEUR
+}
+
+// --- Enum pour les sous-zones (zones détaillées pour scooters) ---
+public enum SousZone {
+    // Grand Tunis
+    TUNIS_CENTRE,
+    ARIANA_NORD,
+    BEN_AROUS_SUD,
+    MANOUBA_OUEST,
+
+    // Côtier Nord
+    BIZERTE_METRO,
+    NABEUL_HAMMAMET,
+    KELIBIA_MENZEL_TEMIME,
+
+    // Centre Est
+    SOUSSE,
+    MONASTIR,
+    MAHDIA,
+
+    // Sfax
+    SFAX,
+
+    // Sud Est
+    GABES,
+    DJERBA_ZARZIS,
+
+    // Intérieur
+    KAIROUAN
+}
+
 
     // --- Getters / Setters ---
     public String getId() { return id; }
@@ -148,4 +199,38 @@ public enum ModePaiement {
     public void setLongitudeDestination(Double longitudeDestination) { this.longitudeDestination = longitudeDestination; }
     public Double getDistanceKm() { return distanceKm; }
     public void setDistanceKm(Double distanceKm) { this.distanceKm = distanceKm; }
+    // --- Sous-zone ---
+    public SousZone getSousZoneDepart() {
+        return sousZoneDepart;
+    }
+
+    public void setSousZoneDepart(SousZone sousZoneDepart) {
+        this.sousZoneDepart = sousZoneDepart;
+    }
+
+    public SousZone getSousZoneArrivee() {
+        return sousZoneArrivee;
+    }
+
+    public void setSousZoneArrivee(SousZone sousZoneArrivee) {
+        this.sousZoneArrivee = sousZoneArrivee;
+    }
+
+    // --- Zone principale ---
+    public Zone getZonePrincipaleDepart() {
+        return zonePrincipaleDepart;
+    }
+
+    public void setZonePrincipaleDepart(Zone zonePrincipaleDepart) {
+        this.zonePrincipaleDepart = zonePrincipaleDepart;
+    }
+
+    public Zone getZonePrincipaleArrivee() {
+        return zonePrincipaleArrivee;
+    }
+
+    public void setZonePrincipaleArrivee(Zone zonePrincipaleArrivee) {
+        this.zonePrincipaleArrivee = zonePrincipaleArrivee;
+    }
+
 }

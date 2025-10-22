@@ -72,6 +72,13 @@ public class CommandeService {
             commande.setDistanceKm(details.getDistanceKm());
             commande.setDistanceKm(details.getDistanceKm());
 
+
+            commande.setSousZoneDepart(details.getSousZoneDepart());
+            commande.setSousZoneArrivee(details.getSousZoneArrivee());
+
+            commande.setZonePrincipaleDepart(details.getZonePrincipaleDepart());
+            commande.setZonePrincipaleArrivee(details.getZonePrincipaleArrivee());
+
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
