@@ -100,5 +100,10 @@ public class CommandeController {
         int count = commandeService.countCommandesByIdAmieAndStatutEnvoyee(idAmie);
         return ResponseEntity.ok(count);
     }
+    @GetMapping("/zone/{zone}")
+    public List<Commande> getCommandesByZonePrincipale(@PathVariable Commande.Zone zone) {
+        return commandeService.getCommandesByZonePrincipale(zone);
+    }
+
 
 }

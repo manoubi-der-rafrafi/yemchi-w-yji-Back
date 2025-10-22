@@ -106,4 +106,8 @@ public class CommandeService {
     public int countCommandesByIdAmieAndStatutEnvoyee(String idAmie) {
         return commandeRepository.countByIdAmieAndStatut(idAmie, Commande.Statut.envoyee);
     }   
+    public List<Commande> getCommandesByZonePrincipale(Commande.Zone zone) {
+    return commandeRepository.findByZonePrincipaleDepartAndZonePrincipaleArrivee(zone, zone);
+}
+
 }
