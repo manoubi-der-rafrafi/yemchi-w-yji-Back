@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
@@ -174,6 +175,14 @@ public static record LoginRequest(String email, String motDePasse) {}
                     if (updated.getEmail() != null)          user.setEmail(updated.getEmail());
                     if (updated.getRole() != null)           user.setRole(updated.getRole());
                     if (updated.getStatut() != null)         user.setStatut(updated.getStatut());
+                    
+
+                    if (updated.getSousZone() != null)       user.setSousZone(updated.getSousZone());
+                    if (updated.getZone() != null)           user.setZone(updated.getZone());
+
+                    // Nouveaux champs: latitude / longitude (si tu utilises Double)
+                    if (updated.getLatitude() != 0.0) user.setLatitude(updated.getLatitude());
+                    if (updated.getLongitude() != 0.0) user.setLongitude(updated.getLongitude());
 
                     utilisateurRepository.save(user);
 
@@ -270,5 +279,33 @@ public static record LoginRequest(String email, String motDePasse) {}
         return utilisateurService.chercherParEmail(email)
                 .map(ResponseEntity::ok)                  // 200 + objet Utilisateur
                 .orElse(ResponseEntity.notFound().build());// 404 si rien
+    }
+    @PutMapping("/{id}/localisation")
+    public ResponseEntity<?> updateLocalisation(
+            @PathVariable("id") String userId,
+            @RequestBody Map<String, Object> body) {
+
+        // 1) Extraire latitude/longitude depuis le JSON du corps
+        Double lat = null, lng = null;
+        try {
+            Object latObj = body.get("latitude");
+            Object lngObj = body.get("longitude");
+            if (latObj != null) lat = Double.valueOf(latObj.toString());
+            if (lngObj != null) lng = Double.valueOf(lngObj.toString());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Erreur de format: latitude/longitude doivent être numériques.");
+        }
+
+        // 2) Appeler TA méthode de service (qui fait les validations et la sauvegarde)
+        try {
+            Utilisateur updated = utilisateurService.updateLocalisation(userId, lat, lng);
+            return ResponseEntity.ok(updated);
+        } catch (ResponseStatusException ex) {
+            return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erreur serveur: " + e.getMessage());
+        }
     }
 }

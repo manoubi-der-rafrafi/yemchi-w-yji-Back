@@ -7,9 +7,11 @@ import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
@@ -145,4 +147,24 @@ public class UtilisateurService {
       log.debug("expireInactives: {} utilisateur(s) mis hors-ligne", list.size());
     }
   }
+
+  public Utilisateur updateLocalisation(String userId, Double latitude, Double longitude) {
+        // Double-check des bornes (déjà validées par @Valid coté controller)
+        if (latitude == null || longitude == null ||
+            latitude < -90.0 || latitude > 90.0 ||
+            longitude < -180.0 || longitude > 180.0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Latitude/Longitude invalides");
+        }
+
+        Utilisateur user = repo.findById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+
+        user.setLatitude(latitude);
+        user.setLongitude(longitude);
+        repo.save(user);
+
+        // Par sécurité, ne retourne jamais le mot de passe
+        user.setMotDePasse(null);
+        return user;
+    }
 }

@@ -1,11 +1,11 @@
 package com.transport.transport.model;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import java.time.LocalDateTime;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 @Document(collection = "utilisateur")
 public class Utilisateur {
@@ -35,6 +35,10 @@ public class Utilisateur {
 
     private LocalDateTime lastSeen;
     private boolean online;
+    private double latitude;
+    private double longitude;
+    private SousZone sousZone;
+    private Zone zone;
     public enum Role { client, transporteur, admin }
     public enum Statut { actif, inactif, banni }
 
@@ -80,5 +84,57 @@ public class Utilisateur {
     public void setLastSeen(LocalDateTime lastSeen) { this.lastSeen = lastSeen; }
     public boolean isOnline() { return online; }
     public void setOnline(boolean online) { this.online = online; }
+
+    public double getLatitude() { return latitude; }
+    public void setLatitude(double latitude) { this.latitude = latitude; }
+
+    public double getLongitude() { return longitude; }
+    public void setLongitude(double longitude) { this.longitude = longitude; }
+
+    public SousZone getSousZone() { return sousZone; }
+    public void setSousZone(SousZone sousZone) { this.sousZone = sousZone; }
+
+    public Zone getZone() { return zone; }
+    public void setZone(Zone zone) { this.zone = zone; }
+
+
+    // --- Enum pour les grandes zones (régions principales) ---
+public enum Zone {
+    GRAND_TUNIS,
+    COTIER_NORD,
+    CENTRE_EST,
+    SFAX,
+    SUD_EST,
+    INTERIEUR
+}
+
+// --- Enum pour les sous-zones (zones détaillées pour scooters) ---
+public enum SousZone {
+    // Grand Tunis
+    TUNIS_CENTRE,
+    ARIANA_NORD,
+    BEN_AROUS_SUD,
+    MANOUBA_OUEST,
+
+    // Côtier Nord
+    BIZERTE_METRO,
+    NABEUL_HAMMAMET,
+    KELIBIA_MENZEL_TEMIME,
+
+    // Centre Est
+    SOUSSE,
+    MONASTIR,
+    MAHDIA,
+
+    // Sfax
+    SFAX,
+
+    // Sud Est
+    GABES,
+    DJERBA_ZARZIS,
+
+    // Intérieur
+    KAIROUAN
+}
 
 }
