@@ -308,4 +308,23 @@ public static record LoginRequest(String email, String motDePasse) {}
                     .body("Erreur serveur: " + e.getMessage());
         }
     }
+
+    @PutMapping("/{id}/zone/{zone}")
+public ResponseEntity<Utilisateur> updateZone(
+    @PathVariable String id,
+    @PathVariable Utilisateur.Zone zone
+) {
+  Utilisateur updated = utilisateurService.updateZone(id, zone);
+  return ResponseEntity.ok(updated);
+}
+
+// PUT /api/utilisateur/{id}/sous-zone/TUNIS_CENTRE
+@PutMapping("/{id}/sous-zone/{sousZone}")
+public ResponseEntity<Utilisateur> updateSousZone(
+    @PathVariable String id,
+    @PathVariable Utilisateur.SousZone sousZone
+) {
+  Utilisateur updated = utilisateurService.updateSousZone(id, sousZone);
+  return ResponseEntity.ok(updated);
+}
 }

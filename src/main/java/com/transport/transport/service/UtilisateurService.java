@@ -167,4 +167,22 @@ public class UtilisateurService {
         user.setMotDePasse(null);
         return user;
     }
+
+    public Utilisateur updateZone(String userId, Utilisateur.Zone zone) {
+    Utilisateur u = repo.findById(userId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+    u.setZone(zone);
+    repo.save(u);
+    u.setMotDePasse(null); // ne jamais renvoyer le mdp
+    return u;
+  }
+
+  public Utilisateur updateSousZone(String userId, Utilisateur.SousZone sousZone) {
+    Utilisateur u = repo.findById(userId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+    u.setSousZone(sousZone);
+    repo.save(u);
+    u.setMotDePasse(null);
+    return u;
+  }
 }
