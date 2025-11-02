@@ -21,7 +21,7 @@ public class Utilisateur {
     private String motDePasse;
     private String telephone;
 
-    private Role role = Role.client;
+    private Role role ;
 
     private String adresse;
 
