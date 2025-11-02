@@ -92,7 +92,8 @@ public class Commande {
         livree,
         confirmer,
         envoyee,
-        accepter
+        accepter,
+        en_route
     }
 
     /**

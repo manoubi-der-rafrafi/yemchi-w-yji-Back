@@ -128,6 +128,7 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
     return commandeRepository.findById(idCommande).map(commande -> {
         commande.setTransporteurId(idTransporteur);
         commande.setMajLe(LocalDateTime.now());
+        commande.setStatut(Statut.en_route);
         return commandeRepository.save(commande);
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
