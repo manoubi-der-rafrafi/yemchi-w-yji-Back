@@ -74,6 +74,16 @@ public class Commande {
     @com.fasterxml.jackson.annotation.JsonAlias("zonePrincipaleArrivee")
     @com.fasterxml.jackson.annotation.JsonProperty("zone_principale_arrivee")
     private Zone zonePrincipaleArrivee;
+
+    private boolean qrCodeDepartScanne;        // indique si le scan a été fait
+    private LocalDateTime dateScanDepart;      // horodatage du scan
+
+    private boolean qrCodeReceptionScanne;
+    private LocalDateTime dateScanReception;
+
+
+
+
     // --- Enums ---
     public enum Statut {
         annulee,
@@ -232,5 +242,35 @@ public enum SousZone {
     public void setZonePrincipaleArrivee(Zone zonePrincipaleArrivee) {
         this.zonePrincipaleArrivee = zonePrincipaleArrivee;
     }
+    public boolean isQrCodeDepartScanne() {
+        return qrCodeDepartScanne;
+    }
 
+    public void setQrCodeDepartScanne(boolean qrCodeDepartScanne) {
+        this.qrCodeDepartScanne = qrCodeDepartScanne;
+    }
+
+    public LocalDateTime getDateScanDepart() {
+        return dateScanDepart;
+    }
+
+    public void setDateScanDepart(LocalDateTime dateScanDepart) {
+        this.dateScanDepart = dateScanDepart;
+    }
+
+    public boolean isQrCodeReceptionScanne() {
+        return qrCodeReceptionScanne;
+    }
+
+    public void setQrCodeReceptionScanne(boolean qrCodeReceptionScanne) {
+        this.qrCodeReceptionScanne = qrCodeReceptionScanne;
+    }
+
+    public LocalDateTime getDateScanReception() {
+        return dateScanReception;
+    }
+
+    public void setDateScanReception(LocalDateTime dateScanReception) {
+        this.dateScanReception = dateScanReception;
+    }
 }

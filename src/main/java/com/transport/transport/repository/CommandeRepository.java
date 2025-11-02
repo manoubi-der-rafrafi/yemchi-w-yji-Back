@@ -16,5 +16,8 @@ public interface CommandeRepository extends MongoRepository<Commande, String> {
     int countByIdAmie(String idAmie);
     int countByIdAmieAndStatut(String idAmie, Commande.Statut statut);
     List<Commande> findByZonePrincipaleDepartAndZonePrincipaleArrivee(Commande.Zone zoneDepart, Commande.Zone zoneArrivee);
-
+    @org.springframework.data.mongodb.repository.Query(
+    value = "{ 'statut': ?0, '$or': [ { 'zonePrincipaleDepart': ?1 }, { 'zonePrincipaleArrivee': ?1 } ] }"
+)
+List<Commande> findByStatutAndZonePrincipale(Commande.Statut statut, Commande.Zone zone, org.springframework.data.domain.Sort sort);
 }

@@ -105,5 +105,20 @@ public class CommandeController {
         return commandeService.getCommandesByZonePrincipale(zone);
     }
 
+    @GetMapping("/zone/{zone}/confirmees")
+    public List<Commande> getCommandesConfirmeesByZone(@PathVariable Commande.Zone zone) {
+        return commandeService.getCommandesByZonePrincipaleConfirmees(zone);
+    }
+    @PutMapping("/{idCommande}/assigner/{idTransporteur}")
+public ResponseEntity<Commande> assignerTransporteur(
+        @PathVariable String idCommande,
+        @PathVariable String idTransporteur) {
+    try {
+        Commande commande = commandeService.assignerTransporteur(idCommande, idTransporteur);
+        return ResponseEntity.ok(commande);
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.notFound().build();
+    }
+}
 
 }

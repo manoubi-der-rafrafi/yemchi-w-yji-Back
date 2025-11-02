@@ -5,9 +5,11 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.transport.transport.model.Commande;
+import com.transport.transport.model.Commande.Statut;
 import com.transport.transport.repository.CommandeRepository;
 import com.transport.transport.repository.UtilisateurRepository;
 
@@ -78,7 +80,14 @@ public class CommandeService {
 
             commande.setZonePrincipaleDepart(details.getZonePrincipaleDepart());
             commande.setZonePrincipaleArrivee(details.getZonePrincipaleArrivee());
+            commande.setQrCodeDepartScanne(details.isQrCodeDepartScanne());
+            commande.setDateScanDepart(details.getDateScanDepart());
 
+            commande.setQrCodeReceptionScanne(details.isQrCodeReceptionScanne());
+            commande.setDateScanReception(details.getDateScanReception());
+
+            // --- Met à jour la date de modification automatique ---
+            commande.setMajLe(LocalDateTime.now());
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
@@ -109,5 +118,19 @@ public class CommandeService {
     public List<Commande> getCommandesByZonePrincipale(Commande.Zone zone) {
     return commandeRepository.findByZonePrincipaleDepartAndZonePrincipaleArrivee(zone, zone);
 }
+    public List<Commande> getCommandesByZonePrincipaleConfirmees(Commande.Zone zone) {
+    //return commandeRepository.findByStatutAndZonePrincipale(Statut.confirmer, zone);
+    // Variante triée :
+     return commandeRepository.findByStatutAndZonePrincipale(
+         Statut.confirmer, zone, Sort.by(Sort.Direction.DESC, "dateDemande"));
+}
+public Commande assignerTransporteur(String idCommande, String idTransporteur) {
+    return commandeRepository.findById(idCommande).map(commande -> {
+        commande.setTransporteurId(idTransporteur);
+        commande.setMajLe(LocalDateTime.now());
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
 
 }
