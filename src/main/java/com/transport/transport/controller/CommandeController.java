@@ -120,5 +120,9 @@ public ResponseEntity<Commande> assignerTransporteur(
         return ResponseEntity.notFound().build();
     }
 }
+@GetMapping("/transporteur/{idTransporteur}")
+public List<Commande> getByTransporteur(@PathVariable String idTransporteur) {
+    return commandeService.getCommandesByTransporteur(idTransporteur);
+}
 
 }

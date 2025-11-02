@@ -132,6 +132,9 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
         return commandeRepository.save(commande);
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
+public List<Commande> getCommandesByTransporteur(String idTransporteur) {
+    return commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur);
+}
 
 
 }

@@ -110,6 +110,7 @@ public static record LoginRequest(String email, String motDePasse) {}
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouvé");
         }
+        user.setMotDePasse(null);
         return ResponseEntity.ok(user);
     }
 
