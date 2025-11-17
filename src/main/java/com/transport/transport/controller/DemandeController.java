@@ -73,7 +73,7 @@ public class DemandeController {
 
             // Paramètres Cloudinary
             Map<String, Object> params = ObjectUtils.asMap(
-                    "folder", "monapp/profil",  // <- change en "monapp/produits" si besoin
+                    "folder", "monapp/Document",  // <- change en "monapp/produits" si besoin
                     "resource_type", "image",
                     "use_filename", true,       // garde (en partie) le nom d'origine
                     "unique_filename", true,    // évite les collisions
