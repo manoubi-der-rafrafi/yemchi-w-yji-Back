@@ -27,6 +27,11 @@ public class Utilisateur {
 
     /** chemin/URL vers l'image de profil */
     private String image;
+    private String imageCarteIdentiteFace;
+    private String imageCarteIdentiteArriere;
+    private String imagePermis;
+    private String imageCarteGrise;
+    private String imageAssurance;
 
     private Statut statut = Statut.actif;
 
@@ -41,6 +46,7 @@ public class Utilisateur {
     private Zone zone;
     public enum Role { client, transporteur, admin }
     public enum Statut { actif, inactif, banni }
+
 
     public Utilisateur() {}
 
@@ -74,6 +80,21 @@ public class Utilisateur {
 
     public String getImage() { return image; }
     public void setImage(String image) { this.image = image; }
+
+    public String getImageCarteIdentiteFace() { return imageCarteIdentiteFace; }
+    public void setImageCarteIdentiteFace(String imageCarteIdentiteFace) { this.imageCarteIdentiteFace = imageCarteIdentiteFace; }
+
+    public String getImageCarteIdentiteArriere() { return imageCarteIdentiteArriere; }
+    public void setImageCarteIdentiteArriere(String imageCarteIdentiteArriere) { this.imageCarteIdentiteArriere = imageCarteIdentiteArriere; }
+
+    public String getImagePermis() { return imagePermis; }
+    public void setImagePermis(String imagePermis) { this.imagePermis = imagePermis; }
+
+    public String getImageCarteGrise() { return imageCarteGrise; }
+    public void setImageCarteGrise(String imageCarteGrise) { this.imageCarteGrise = imageCarteGrise; }
+
+    public String getImageAssurance() { return imageAssurance; }
+    public void setImageAssurance(String imageAssurance) { this.imageAssurance = imageAssurance; }
 
     public Statut getStatut() { return statut; }
     public void setStatut(Statut statut) { this.statut = statut; }

@@ -171,6 +171,11 @@ public static record LoginRequest(String email, String motDePasse) {}
                     if (updated.getTelephone() != null)      user.setTelephone(updated.getTelephone());
                     if (updated.getDateNaissance() != null)  user.setDateNaissance(updated.getDateNaissance());
                     if (updated.getImage() != null)          user.setImage(updated.getImage()); // URL seulement si envoyée
+                    if (updated.getImageCarteIdentiteFace() != null) user.setImageCarteIdentiteFace(updated.getImageCarteIdentiteFace());
+                    if (updated.getImageCarteIdentiteArriere() != null) user.setImageCarteIdentiteArriere(updated.getImageCarteIdentiteArriere());
+                    if (updated.getImagePermis() != null)     user.setImagePermis(updated.getImagePermis());
+                    if (updated.getImageCarteGrise() != null) user.setImageCarteGrise(updated.getImageCarteGrise());
+                    if (updated.getImageAssurance() != null)  user.setImageAssurance(updated.getImageAssurance());
 
                     // Optionnel : si tu autorises aussi ces champs à être mis à jour partiellement
                     if (updated.getEmail() != null)          user.setEmail(updated.getEmail());
@@ -328,4 +333,8 @@ public ResponseEntity<Utilisateur> updateSousZone(
   Utilisateur updated = utilisateurService.updateSousZone(id, sousZone);
   return ResponseEntity.ok(updated);
 }
+
+
+
+
 }
