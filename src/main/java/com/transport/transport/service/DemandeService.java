@@ -32,6 +32,10 @@ public class DemandeService {
         return traiterDemande(idDemande, false);
     }
 
+    public boolean numeroExiste(String numero) {
+        return demandeRepository.existsByNumero(numero);
+    }
+
     private Demande traiterDemande(String idDemande, boolean decision) {
         Demande demande = demandeRepository.findById(idDemande)
                 .orElseThrow(() -> new IllegalArgumentException("Demande introuvable: " + idDemande));

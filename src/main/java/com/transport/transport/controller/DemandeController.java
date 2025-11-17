@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -28,6 +29,15 @@ public class DemandeController {
     public DemandeController(DemandeService demandeService, Cloudinary cloudinary) {
         this.demandeService = demandeService;
         this.cloudinary = cloudinary;
+    }
+
+    @GetMapping("/numero/existe")
+    public ResponseEntity<Map<String, Object>> numeroExiste(@RequestParam String numero) {
+        boolean existe = demandeService.numeroExiste(numero);
+        return ResponseEntity.ok(Map.of(
+                "numero", numero,
+                "existe", existe
+        ));
     }
 
     @PostMapping
