@@ -169,6 +169,7 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
           .requestMatchers("/api/produits/**").permitAll()
           .requestMatchers("/api/utilisateur/register").permitAll()
           .requestMatchers("/api/commandes/**").authenticated()
+          .requestMatchers("/api/demandes/**").authenticated()
           .anyRequest().authenticated()
       )
       .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
