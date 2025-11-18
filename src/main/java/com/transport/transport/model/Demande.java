@@ -20,6 +20,7 @@ public class Demande {
     private String imagePermis;
     private String imageCarteGrise;
     private String imageAssurance;
+    private TypeVehicule typeVehicule;
 
     @CreatedDate
     private LocalDateTime dateDemande;
@@ -100,6 +101,14 @@ public class Demande {
 
     public void setImageAssurance(String imageAssurance) {
         this.imageAssurance = imageAssurance;
+    }
+
+    public TypeVehicule getTypeVehicule() {
+        return typeVehicule;
+    }
+
+    public void setTypeVehicule(TypeVehicule typeVehicule) {
+        this.typeVehicule = typeVehicule;
     }
 
     public LocalDateTime getDateDemande() {
