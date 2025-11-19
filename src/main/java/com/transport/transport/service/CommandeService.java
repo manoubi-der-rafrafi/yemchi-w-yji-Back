@@ -135,6 +135,14 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
 public List<Commande> getCommandesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur);
 }
+public List<Commande> getCommandesBySousZones(
+        List<Commande.SousZone> sousZonesDepart,
+        List<Commande.SousZone> sousZonesArrivee) {
+    if (sousZonesDepart == null || sousZonesArrivee == null || sousZonesDepart.isEmpty() || sousZonesArrivee.isEmpty()) {
+        throw new IllegalArgumentException("Les listes de sous-zones doivent etre renseignees");
+    }
+    return commandeRepository.findBySousZoneDepartInAndSousZoneArriveeIn(sousZonesDepart, sousZonesArrivee);
+}
 
 
 }

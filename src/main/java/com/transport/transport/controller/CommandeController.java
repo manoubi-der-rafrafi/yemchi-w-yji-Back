@@ -124,5 +124,40 @@ public ResponseEntity<Commande> assignerTransporteur(
 public List<Commande> getByTransporteur(@PathVariable String idTransporteur) {
     return commandeService.getCommandesByTransporteur(idTransporteur);
 }
+@PostMapping("/sous-zones")
+public ResponseEntity<List<Commande>> getCommandesBySousZones(@RequestBody SousZoneFilterRequest request) {
+    if (request == null) {
+        return ResponseEntity.badRequest().build();
+    }
+    try {
+        List<Commande> commandes = commandeService.getCommandesBySousZones(
+                request.getSousZonesDepart(),
+                request.getSousZonesArrivee());
+        return ResponseEntity.ok(commandes);
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.badRequest().build();
+    }
+}
+
+public static class SousZoneFilterRequest {
+    private List<Commande.SousZone> sousZonesDepart;
+    private List<Commande.SousZone> sousZonesArrivee;
+
+    public List<Commande.SousZone> getSousZonesDepart() {
+        return sousZonesDepart;
+    }
+
+    public void setSousZonesDepart(List<Commande.SousZone> sousZonesDepart) {
+        this.sousZonesDepart = sousZonesDepart;
+    }
+
+    public List<Commande.SousZone> getSousZonesArrivee() {
+        return sousZonesArrivee;
+    }
+
+    public void setSousZonesArrivee(List<Commande.SousZone> sousZonesArrivee) {
+        this.sousZonesArrivee = sousZonesArrivee;
+    }
+}
 
 }
