@@ -32,6 +32,7 @@ public class Utilisateur {
     private String imagePermis;
     private String imageCarteGrise;
     private String imageAssurance;
+    private TypeVehicule typeVehicule;
 
     private Statut statut = Statut.actif;
 
@@ -95,6 +96,9 @@ public class Utilisateur {
 
     public String getImageAssurance() { return imageAssurance; }
     public void setImageAssurance(String imageAssurance) { this.imageAssurance = imageAssurance; }
+
+    public TypeVehicule getTypeVehicule() { return typeVehicule; }
+    public void setTypeVehicule(TypeVehicule typeVehicule) { this.typeVehicule = typeVehicule; }
 
     public Statut getStatut() { return statut; }
     public void setStatut(Statut statut) { this.statut = statut; }
