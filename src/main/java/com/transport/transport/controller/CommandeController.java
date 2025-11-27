@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -48,6 +49,16 @@ public class CommandeController {
     @PutMapping("/{id}")
     public ResponseEntity<Commande> updateCommande(@PathVariable String  id, @RequestBody Commande commandeDetails) {
         Commande updatedCommande = commandeService.updateCommande(id, commandeDetails);
+        if (updatedCommande != null) {
+            return ResponseEntity.ok(updatedCommande);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<Commande> updateCommandePatch(@PathVariable String  id, @RequestBody Commande commandeDetails) {
+        Commande updatedCommande = commandeService.updateCommandePatch(id, commandeDetails);
         if (updatedCommande != null) {
             return ResponseEntity.ok(updatedCommande);
         } else {

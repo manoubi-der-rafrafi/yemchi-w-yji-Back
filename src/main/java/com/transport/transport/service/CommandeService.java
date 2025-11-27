@@ -66,6 +66,10 @@ public class CommandeService {
                 commande.setDateDemande(details.getDateDemande());
             }
             if (details.getStatut() != null) {
+                if(details.getStatut() == Statut.confirmer)
+                {
+                    commande.setDateConfirmation(LocalDateTime.now());
+                }
                 commande.setStatut(details.getStatut());
             }
             if (details.getPrix() != null) {
@@ -139,6 +143,40 @@ public class CommandeService {
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
+
+    public Commande updateCommandePatch(String id, Commande patch) {
+
+    return commandeRepository.findById(id).map(existing -> {
+
+        // Copy only non-null fields from patch → existing
+        BeanWrapper srcWrapper = new BeanWrapperImpl(patch);
+        BeanWrapper targetWrapper = new BeanWrapperImpl(existing);
+
+        for (var pd : srcWrapper.getPropertyDescriptors()) {
+            String field = pd.getName();
+
+            // Skip technical fields that must NOT be patched
+            if (field.equals("id") ||
+                field.equals("createdAt") ||
+                field.equals("majLe")) {
+                continue;
+            }
+
+            Object newValue = srcWrapper.getPropertyValue(field);
+            if (newValue != null) {
+                targetWrapper.setPropertyValue(field, newValue);
+            }
+        }
+
+        // Always update modification date
+        existing.setMajLe(LocalDateTime.now());
+
+        return commandeRepository.save(existing);
+
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
+
 
     // Supprimer une commande par son id
     public void deleteCommande(String  id) {
