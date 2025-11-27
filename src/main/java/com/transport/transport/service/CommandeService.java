@@ -3,7 +3,10 @@ package com.transport.transport.service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
+import org.springframework.beans.BeanWrapper;
+import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -68,7 +71,7 @@ public class CommandeService {
             if (details.getStatut() != null) {
                 if(details.getStatut() == Statut.confirmer)
                 {
-                    commande.setDateConfirmation(LocalDateTime.now());
+                    commande.setDateDemande(LocalDateTime.now());
                 }
                 commande.setStatut(details.getStatut());
             }
@@ -146,33 +149,34 @@ public class CommandeService {
 
     public Commande updateCommandePatch(String id, Commande patch) {
 
-    return commandeRepository.findById(id).map(existing -> {
-
-        // Copy only non-null fields from patch → existing
-        BeanWrapper srcWrapper = new BeanWrapperImpl(patch);
-        BeanWrapper targetWrapper = new BeanWrapperImpl(existing);
-
-        for (var pd : srcWrapper.getPropertyDescriptors()) {
-            String field = pd.getName();
-
-            // Skip technical fields that must NOT be patched
-            if (field.equals("id") ||
-                field.equals("createdAt") ||
-                field.equals("majLe")) {
-                continue;
+    return commandeRepository.findById(id).map(new Function<Commande, Commande>() {
+        @Override
+        public Commande apply(Commande existing) {
+            // Copy only non-null fields from patch → existing
+            BeanWrapper srcWrapper = new BeanWrapperImpl(patch);
+            BeanWrapper targetWrapper = new BeanWrapperImpl(existing);
+            
+            for (var pd : srcWrapper.getPropertyDescriptors()) {
+                String field = pd.getName();
+                
+                // Skip technical fields that must NOT be patched
+                if (field.equals("id") ||
+                        field.equals("createdAt") ||
+                        field.equals("majLe")) {
+                    continue;
+                }
+                
+                Object newValue = srcWrapper.getPropertyValue(field);
+                if (newValue != null) {
+                    targetWrapper.setPropertyValue(field, newValue);
+                }
             }
-
-            Object newValue = srcWrapper.getPropertyValue(field);
-            if (newValue != null) {
-                targetWrapper.setPropertyValue(field, newValue);
-            }
+            
+            // Always update modification date
+            existing.setMajLe(LocalDateTime.now());
+            
+            return commandeRepository.save(existing);
         }
-
-        // Always update modification date
-        existing.setMajLe(LocalDateTime.now());
-
-        return commandeRepository.save(existing);
-
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
