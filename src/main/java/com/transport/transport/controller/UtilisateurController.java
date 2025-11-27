@@ -169,7 +169,7 @@ public static record LoginRequest(String email, String motDePasse) {}
                     if (updated.getPrenom() != null)         user.setPrenom(updated.getPrenom());
                     if (updated.getAdresse() != null)        user.setAdresse(updated.getAdresse());
                     if (updated.getTelephone() != null)      user.setTelephone(updated.getTelephone());
-                    if (updated.getDateNaissance() != null)  user.setDateNaissance(updated.getDateNaissance());
+                    if (updat-ed.getDateNaissance() != null)  user.setDateNaissance(updated.getDateNaissance());
                     if (updated.getImage() != null)          user.setImage(updated.getImage()); // URL seulement si envoyée
                     if (updated.getImageCarteIdentiteFace() != null) user.setImageCarteIdentiteFace(updated.getImageCarteIdentiteFace());
                     if (updated.getImageCarteIdentiteArriere() != null) user.setImageCarteIdentiteArriere(updated.getImageCarteIdentiteArriere());

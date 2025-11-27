@@ -25,18 +25,18 @@ public class CommandeService {
         this.utilisateurRepository = utilisateurRepository;
     }
 
-    // Historique simple d’un client
+    // Historique simple d'un client
     public List<Commande> getHistoriqueClient(String  clientId) {
         utilisateurRepository.findById(clientId)
                 .orElseThrow(() -> new IllegalArgumentException("Client introuvable"));
         return commandeRepository.findByClientIdOrderByDateDemandeDesc(clientId);
     }
-    // Récupérer toutes les commandes
+    // Recuperer toutes les commandes
     public List<Commande> getAllCommandes() {
         return commandeRepository.findAll();
     }
 
-    // Récupérer une commande par son id
+    // Recuperer une commande par son id
     public Optional<Commande> getCommandeById(String  id) {
         return commandeRepository.findById(id);
     }
@@ -46,47 +46,95 @@ public class CommandeService {
         return commandeRepository.save(commande);
     }
 
-    // Mettre à jour une commande existante
+    // Mettre a jour une commande existante
     public Commande updateCommande(String id, Commande details) {
         return commandeRepository.findById(id).map(commande -> {
             // copie EXPLICITE de tous les champs que tu veux rendre modifiables
-            commande.setLocalisationDepart(details.getLocalisationDepart());
-            commande.setDestination(details.getDestination());
-            commande.setDateDebut(details.getDateDebut());
-            commande.setDateFin(details.getDateFin());
-            commande.setDateDemande(details.getDateDemande());
-            commande.setStatut(details.getStatut());
-            commande.setPrix(details.getPrix());
-            commande.setModePaiement(details.getModePaiement());
-            commande.setInstructions(details.getInstructions());
+            if (details.getLocalisationDepart() != null) {
+                commande.setLocalisationDepart(details.getLocalisationDepart());
+            }
+            if (details.getDestination() != null) {
+                commande.setDestination(details.getDestination());
+            }
+            if (details.getDateDebut() != null) {
+                commande.setDateDebut(details.getDateDebut());
+            }
+            if (details.getDateFin() != null) {
+                commande.setDateFin(details.getDateFin());
+            }
+            if (details.getDateDemande() != null) {
+                commande.setDateDemande(details.getDateDemande());
+            }
+            if (details.getStatut() != null) {
+                commande.setStatut(details.getStatut());
+            }
+            if (details.getPrix() != null) {
+                commande.setPrix(details.getPrix());
+            }
+            if (details.getModePaiement() != null) {
+                commande.setModePaiement(details.getModePaiement());
+            }
+            if (details.getInstructions() != null) {
+                commande.setInstructions(details.getInstructions());
+            }
 
-            commande.setTelDepart(details.getTelDepart());            // ✅ ajouté
-            commande.setClientId(details.getClientId());              // ✅ s’assure que ça se copie
-            commande.setTransporteurId(details.getTransporteurId());
-            commande.setIdAmie(details.getIdAmie());
-            commande.setTelArrivee(details.getTelArrivee());
+            if (details.getTelDepart() != null) {            // �o. ajout�
+                commande.setTelDepart(details.getTelDepart());
+            }
+            if (details.getClientId() != null) {              // �o. s'assure que �a se copie
+                commande.setClientId(details.getClientId());
+            }
+            if (details.getTransporteurId() != null) {
+                commande.setTransporteurId(details.getTransporteurId());
+            }
+            if (details.getIdAmie() != null) {
+                commande.setIdAmie(details.getIdAmie());
+            }
+            if (details.getTelArrivee() != null) {
+                commande.setTelArrivee(details.getTelArrivee());
+            }
 
-            commande.setLatitudeDepart(details.getLatitudeDepart());
-            commande.setLongitudeDepart(details.getLongitudeDepart());
-            commande.setLatitudeDestination(details.getLatitudeDestination());
-            commande.setLongitudeDestination(details.getLongitudeDestination());
+            if (details.getLatitudeDepart() != null) {
+                commande.setLatitudeDepart(details.getLatitudeDepart());
+            }
+            if (details.getLongitudeDepart() != null) {
+                commande.setLongitudeDepart(details.getLongitudeDepart());
+            }
+            if (details.getLatitudeDestination() != null) {
+                commande.setLatitudeDestination(details.getLatitudeDestination());
+            }
+            if (details.getLongitudeDestination() != null) {
+                commande.setLongitudeDestination(details.getLongitudeDestination());
+            }
 
-            commande.setDistanceKm(details.getDistanceKm());
-            commande.setDistanceKm(details.getDistanceKm());
+            if (details.getDistanceKm() != null) {
+                commande.setDistanceKm(details.getDistanceKm());
+            }
 
+            if (details.getSousZoneDepart() != null) {
+                commande.setSousZoneDepart(details.getSousZoneDepart());
+            }
+            if (details.getSousZoneArrivee() != null) {
+                commande.setSousZoneArrivee(details.getSousZoneArrivee());
+            }
 
-            commande.setSousZoneDepart(details.getSousZoneDepart());
-            commande.setSousZoneArrivee(details.getSousZoneArrivee());
-
-            commande.setZonePrincipaleDepart(details.getZonePrincipaleDepart());
-            commande.setZonePrincipaleArrivee(details.getZonePrincipaleArrivee());
+            if (details.getZonePrincipaleDepart() != null) {
+                commande.setZonePrincipaleDepart(details.getZonePrincipaleDepart());
+            }
+            if (details.getZonePrincipaleArrivee() != null) {
+                commande.setZonePrincipaleArrivee(details.getZonePrincipaleArrivee());
+            }
             commande.setQrCodeDepartScanne(details.isQrCodeDepartScanne());
-            commande.setDateScanDepart(details.getDateScanDepart());
+            if (details.getDateScanDepart() != null) {
+                commande.setDateScanDepart(details.getDateScanDepart());
+            }
 
             commande.setQrCodeReceptionScanne(details.isQrCodeReceptionScanne());
-            commande.setDateScanReception(details.getDateScanReception());
+            if (details.getDateScanReception() != null) {
+                commande.setDateScanReception(details.getDateScanReception());
+            }
 
-            // --- Met à jour la date de modification automatique ---
+            // --- Met a jour la date de modification automatique ---
             commande.setMajLe(LocalDateTime.now());
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
@@ -102,7 +150,7 @@ public class CommandeService {
     public Commande confirmerCommande(String  id) {
         return commandeRepository.findById(id).map(commande -> {
             commande.setStatut(Commande.Statut.confirmer);
-            commande.setDateDemande(LocalDateTime.now()); // ➝ date actuelle
+            commande.setDateDemande(LocalDateTime.now()); // �z? date actuelle
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
@@ -120,7 +168,7 @@ public class CommandeService {
 }
     public List<Commande> getCommandesByZonePrincipaleConfirmees(Commande.Zone zone) {
     //return commandeRepository.findByStatutAndZonePrincipale(Statut.confirmer, zone);
-    // Variante triée :
+    // Variante triee :
      return commandeRepository.findByStatutAndZonePrincipale(
          Statut.confirmer, zone, Sort.by(Sort.Direction.DESC, "dateDemande"));
 }
