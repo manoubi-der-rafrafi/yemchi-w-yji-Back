@@ -35,6 +35,9 @@ import com.cloudinary.utils.ObjectUtils;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
 import com.transport.transport.service.UtilisateurService;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 @RestController
 @RequestMapping("/api/utilisateur")
 public class UtilisateurController {
@@ -46,20 +49,86 @@ public class UtilisateurController {
     private final AuthenticationManager authManager;
   private final JwtEncoder jwtEncoder;
   private final PasswordEncoder passwordEncoder;
+  private final GoogleIdTokenVerifier googleVerifier;
     // LOGIN : POST /api/utilisateur/login
     private final String uploadBaseDir = "C:/Users/Lenovo/Desktop/angular/transport/public/profil";
     public UtilisateurController(UtilisateurService utilisateurService, Cloudinary cloudinary,
     AuthenticationManager authManager,
       JwtEncoder jwtEncoder,
-      PasswordEncoder passwordEncoder) {
+      PasswordEncoder passwordEncoder,
+      GoogleIdTokenVerifier googleVerifier) {
         this.utilisateurService = utilisateurService;
         this.cloudinary = cloudinary;
         this.authManager = authManager;
     this.jwtEncoder = jwtEncoder;
     this.passwordEncoder = passwordEncoder;
+    this.googleVerifier = googleVerifier;
 
     }
 
+
+    @PostMapping("/login/google")
+    public ResponseEntity<?> loginWithGoogle(@RequestBody GoogleLoginRequest req) {
+      if (req == null || req.idToken() == null || req.idToken().isBlank()) {
+        return ResponseEntity.badRequest().body("Token Google manquant");
+      }
+
+      try {
+        GoogleIdToken idToken = googleVerifier.verify(req.idToken());
+        if (idToken == null) {
+          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token Google invalide");
+        }
+
+        Payload payload = idToken.getPayload();
+        String email = payload.getEmail();
+        if (email == null) {
+          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email Google manquante");
+        }
+        if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email Google non vérifiée");
+        }
+
+        Utilisateur user = utilisateurRepository.findByEmailIgnoreCase(email)
+            .orElseGet(() -> {
+              Utilisateur u = new Utilisateur();
+              u.setEmail(email);
+              u.setPrenom((String) payload.get("given_name"));
+              u.setNom((String) payload.get("family_name"));
+              u.setImage((String) payload.get("picture"));
+              u.setRole(Utilisateur.Role.client);
+              u.setStatut(Utilisateur.Statut.actif);
+              return utilisateurService.saveUtilisateur(u);
+            });
+
+        if (user.getStatut() == Utilisateur.Statut.banni) {
+          return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Compte banni");
+        }
+
+        String role = (user.getRole() != null) ? user.getRole().name() : "CLIENT";
+
+        Instant now = Instant.now();
+        long expiry = 604800; // 7 jours
+        var claims = JwtClaimsSet.builder()
+            .issuer("transport")
+            .issuedAt(now)
+            .expiresAt(now.plusSeconds(expiry))
+            .subject(email)
+            .claim("uid", user.getId())
+            .claim("roles", List.of("ROLE_" + role.toUpperCase()))
+            .build();
+
+        var header = JwsHeader.with(MacAlgorithm.HS256).build();
+        String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+
+        user.setMotDePasse(null);
+
+        return ResponseEntity.ok(new LoginResponse(token, user));
+      } catch (Exception e) {
+        e.printStackTrace();
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+            .body("Erreur login Google: " + e.getMessage());
+      }
+    }
 
     @PostMapping("/login")
   public ResponseEntity<?> login(@RequestBody LoginRequest req) {
@@ -100,6 +169,7 @@ public class UtilisateurController {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
     }
   }
+public static record GoogleLoginRequest(String idToken) {}
 public static record LoginRequest(String email, String motDePasse) {}
   public static record LoginResponse(String token, Utilisateur user) {}
 

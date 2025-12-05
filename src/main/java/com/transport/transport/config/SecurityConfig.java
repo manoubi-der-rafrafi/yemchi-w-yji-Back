@@ -39,10 +39,20 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.jackson2.JacksonFactory;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+
+  @Bean
+  GoogleIdTokenVerifier googleVerifier(@Value("${app.google.client-id}") String clientId) {
+    return new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), JacksonFactory.getDefaultInstance())
+        .setAudience(List.of(clientId))
+        .build();
+  }
 
   @Value("${app.jwt.secret}")
   private String secret;
@@ -163,6 +173,7 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
       .authorizeHttpRequests(auth -> auth
           .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
           .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
+          .requestMatchers(HttpMethod.POST, "/api/utilisateur/login/google").permitAll()
           .requestMatchers("/auth/**").permitAll()
           .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").authenticated()
           .requestMatchers(HttpMethod.GET,  "/api/presence/**").authenticated()
