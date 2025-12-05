@@ -69,12 +69,13 @@ public class UtilisateurController {
 
     @PostMapping("/login/google")
     public ResponseEntity<?> loginWithGoogle(@RequestBody GoogleLoginRequest req) {
-      if (req == null || req.idToken() == null || req.idToken().isBlank()) {
+      String tokenFromRequest = (req != null) ? req.resolvedToken() : null;
+      if (tokenFromRequest == null || tokenFromRequest.isBlank()) {
         return ResponseEntity.badRequest().body("Token Google manquant");
       }
 
       try {
-        GoogleIdToken idToken = googleVerifier.verify(req.idToken());
+        GoogleIdToken idToken = googleVerifier.verify(tokenFromRequest);
         if (idToken == null) {
           return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token Google invalide");
         }
@@ -169,7 +170,14 @@ public class UtilisateurController {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
     }
   }
-public static record GoogleLoginRequest(String idToken) {}
+public static record GoogleLoginRequest(
+    @com.fasterxml.jackson.annotation.JsonProperty("idToken") String idToken,
+    @com.fasterxml.jackson.annotation.JsonProperty("id_token") String idTokenSnake
+) {
+  public String resolvedToken() {
+    return (idToken != null && !idToken.isBlank()) ? idToken : idTokenSnake;
+  }
+}
 public static record LoginRequest(String email, String motDePasse) {}
   public static record LoginResponse(String token, Utilisateur user) {}
 
