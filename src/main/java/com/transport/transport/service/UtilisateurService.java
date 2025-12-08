@@ -55,6 +55,14 @@ public class UtilisateurService {
     return repo.findByEmailIgnoreCase(email);
   }
 
+  public Utilisateur createUserWithEmail(String email) {
+    Utilisateur u = new Utilisateur();
+    u.setEmail(email);
+    u.setVerifier(false);
+    return saveUtilisateur(u);
+  }
+
+
   /** Crée / met à jour un utilisateur en appliquant les valeurs par défaut et le hash du mot de passe. */
   public Utilisateur saveUtilisateur(Utilisateur utilisateur) {
     if (utilisateur.getStatut() == null) {

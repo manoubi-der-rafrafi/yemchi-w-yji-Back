@@ -3,8 +3,11 @@ package com.transport.transport.controller;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +37,7 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
+import com.transport.transport.service.MailService;
 import com.transport.transport.service.UtilisateurService;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
@@ -41,6 +45,8 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 @RestController
 @RequestMapping("/api/utilisateur")
 public class UtilisateurController {
+
+
 
     @Autowired
     private UtilisateurRepository utilisateurRepository;
@@ -50,19 +56,24 @@ public class UtilisateurController {
   private final JwtEncoder jwtEncoder;
   private final PasswordEncoder passwordEncoder;
   private final GoogleIdTokenVerifier googleVerifier;
+  private final MailService mailService;
+  @Value("${app.verification.base-url:http://localhost:3000/verify-email}")
+  private String verificationBaseUrl;
     // LOGIN : POST /api/utilisateur/login
     private final String uploadBaseDir = "C:/Users/Lenovo/Desktop/angular/transport/public/profil";
     public UtilisateurController(UtilisateurService utilisateurService, Cloudinary cloudinary,
     AuthenticationManager authManager,
       JwtEncoder jwtEncoder,
       PasswordEncoder passwordEncoder,
-      GoogleIdTokenVerifier googleVerifier) {
+      GoogleIdTokenVerifier googleVerifier,
+      MailService mailService) {
         this.utilisateurService = utilisateurService;
         this.cloudinary = cloudinary;
         this.authManager = authManager;
     this.jwtEncoder = jwtEncoder;
     this.passwordEncoder = passwordEncoder;
     this.googleVerifier = googleVerifier;
+    this.mailService = mailService;
 
     }
 
@@ -237,6 +248,59 @@ public static record LoginRequest(String email, String motDePasse) {}
     saved.setMotDePasse(null);
     return ResponseEntity.status(HttpStatus.CREATED).body(new LoginResponse(token, saved));
   }
+
+  @PostMapping("/register/email")
+  public ResponseEntity<?> createWithEmailOnly(@RequestBody Map<String, String> body) {
+    String email = body.get("email");
+    if (email == null || email.isBlank()) {
+      return ResponseEntity.badRequest().body("Email requis");
+    }
+    return utilisateurRepository.findByEmailIgnoreCase(email)
+        .map(existing -> {
+          boolean dejaVerifie = Boolean.TRUE.equals(existing.getVerifier());
+          if (dejaVerifie) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email deja utilise");
+          }
+          String token = buildVerificationToken(existing);
+          String url = buildVerificationUrl(token);
+          mailService.sendVerificationEmail(existing.getEmail(), url);
+          existing.setMotDePasse(null);
+          return ResponseEntity.ok(Map.of("user", existing, "verificationUrl", url));
+        })
+        .orElseGet(() -> {
+          Utilisateur created = utilisateurService.createUserWithEmail(email);
+          String token = buildVerificationToken(created);
+          String url = buildVerificationUrl(token);
+          mailService.sendVerificationEmail(created.getEmail(), url);
+          created.setMotDePasse(null);
+          return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("user", created, "verificationUrl", url));
+        });
+  }
+
+  private String buildVerificationToken(Utilisateur user) {
+    Instant now = Instant.now();
+    var claims = JwtClaimsSet.builder()
+        .issuer("transport")
+        .issuedAt(now)
+        .expiresAt(now.plusSeconds(300)) // 5 minutes
+        .subject(user.getId())
+        .claim("email", user.getEmail())
+        .claim("purpose", "verify_email")
+        .build();
+    var header = JwsHeader.with(MacAlgorithm.HS256).build();
+    return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+  }
+
+  private String buildVerificationUrl(String token) {
+    String base = (verificationBaseUrl == null || verificationBaseUrl.isBlank())
+        ? "http://localhost:3000/verify-email"
+        : verificationBaseUrl;
+    String encoded = URLEncoder.encode(token, StandardCharsets.UTF_8);
+    if (base.contains("?")) {
+      return base + "&token=" + encoded;
+    }
+    return base + "?token=" + encoded;
+  }
     @PutMapping("/{id}")
     public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,
                                                     @RequestBody Utilisateur updated) {
@@ -259,7 +323,7 @@ public static record LoginRequest(String email, String motDePasse) {}
                     if (updated.getEmail() != null)          user.setEmail(updated.getEmail());
                     if (updated.getRole() != null)           user.setRole(updated.getRole());
                     if (updated.getStatut() != null)         user.setStatut(updated.getStatut());
-                    
+                    if (updated.getVerifier() != null)       user.setVerifier(updated.getVerifier());
 
                     if (updated.getSousZone() != null)       user.setSousZone(updated.getSousZone());
                     if (updated.getZone() != null)           user.setZone(updated.getZone());

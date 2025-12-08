@@ -21,6 +21,12 @@ public class Utilisateur {
     private String motDePasse;
     private String telephone;
 
+    /**
+     * Indique si l'email a été vérifié.
+     * Utilisé pour le flux d'inscription/validation.
+     */
+    private Boolean verifier = false;
+
     private Role role ;
 
     private String adresse;
@@ -72,6 +78,9 @@ public class Utilisateur {
 
     public String getTelephone() { return telephone; }
     public void setTelephone(String telephone) { this.telephone = telephone; }
+
+    public Boolean getVerifier() { return verifier; }
+    public void setVerifier(Boolean verifier) { this.verifier = verifier; }
 
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
