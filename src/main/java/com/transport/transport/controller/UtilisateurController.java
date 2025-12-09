@@ -337,6 +337,15 @@ public static record LoginRequest(String email, String motDePasse) {}
           .body((Object) Map.of("error", "Token invalide ou expire"));
     }
   }
+
+  @GetMapping("/email-verification-status")
+  public ResponseEntity<Object> emailVerificationStatus(@RequestParam("email") String email) {
+    if (email == null || email.isBlank()) {
+      return ResponseEntity.badRequest().body((Object) Map.of("error", "Email manquant"));
+    }
+    boolean verified = utilisateurService.isEmailVerified(email);
+    return ResponseEntity.ok((Object) Map.of("email", email, "verified", verified));
+  }
     @PutMapping("/{id}")
     public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,
                                                     @RequestBody Utilisateur updated) {
