@@ -176,6 +176,7 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
           .requestMatchers(HttpMethod.POST, "/api/utilisateur/login/google").permitAll()
           .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/email").permitAll()
           .requestMatchers("/api/utilisateur/register/**").permitAll()
+          .requestMatchers(HttpMethod.GET, "/api/utilisateur/verify-email").permitAll()
           .requestMatchers("/auth/**").permitAll()
           .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").authenticated()
           .requestMatchers(HttpMethod.GET,  "/api/presence/**").authenticated()

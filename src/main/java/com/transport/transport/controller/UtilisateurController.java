@@ -20,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -51,9 +53,10 @@ public class UtilisateurController {
     @Autowired
     private UtilisateurRepository utilisateurRepository;
     private UtilisateurService utilisateurService;
-    private final Cloudinary cloudinary;
-    private final AuthenticationManager authManager;
+  private final Cloudinary cloudinary;
+  private final AuthenticationManager authManager;
   private final JwtEncoder jwtEncoder;
+  private final JwtDecoder jwtDecoder;
   private final PasswordEncoder passwordEncoder;
   private final GoogleIdTokenVerifier googleVerifier;
   private final MailService mailService;
@@ -64,6 +67,7 @@ public class UtilisateurController {
     public UtilisateurController(UtilisateurService utilisateurService, Cloudinary cloudinary,
     AuthenticationManager authManager,
       JwtEncoder jwtEncoder,
+      JwtDecoder jwtDecoder,
       PasswordEncoder passwordEncoder,
       GoogleIdTokenVerifier googleVerifier,
       MailService mailService) {
@@ -71,6 +75,7 @@ public class UtilisateurController {
         this.cloudinary = cloudinary;
         this.authManager = authManager;
     this.jwtEncoder = jwtEncoder;
+    this.jwtDecoder = jwtDecoder;
     this.passwordEncoder = passwordEncoder;
     this.googleVerifier = googleVerifier;
     this.mailService = mailService;
@@ -300,6 +305,37 @@ public static record LoginRequest(String email, String motDePasse) {}
       return base + "&token=" + encoded;
     }
     return base + "?token=" + encoded;
+  }
+
+  @GetMapping("/verify-email")
+  public ResponseEntity<Object> verifyEmail(@RequestParam("token") String token) {
+    if (token == null || token.isBlank()) {
+      return ResponseEntity.badRequest().body("Token manquant");
+    }
+    try {
+      Jwt jwt = jwtDecoder.decode(token);
+      Object purpose = jwt.getClaim("purpose");
+      if (purpose == null || !"verify_email".equals(purpose.toString())) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token invalide");
+      }
+      String userId = jwt.getSubject();
+      if (userId == null || userId.isBlank()) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token invalide");
+      }
+
+      return utilisateurRepository.findById(userId)
+          .map(u -> {
+            u.setVerifier(true);
+            utilisateurRepository.save(u);
+            u.setMotDePasse(null);
+            return ResponseEntity.ok().body((Object) Map.of("message", "Email verifie", "user", u));
+          })
+          .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+              .body((Object) Map.of("error", "Utilisateur non trouve")));
+    } catch (Exception e) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body((Object) Map.of("error", "Token invalide ou expire"));
+    }
   }
     @PutMapping("/{id}")
     public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,
