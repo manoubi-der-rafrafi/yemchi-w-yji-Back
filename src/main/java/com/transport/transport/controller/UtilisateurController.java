@@ -1,10 +1,10 @@
 package com.transport.transport.controller;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,8 +19,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
-import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
@@ -37,13 +37,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
 import com.transport.transport.service.MailService;
 import com.transport.transport.service.UtilisateurService;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 @RestController
 @RequestMapping("/api/utilisateur")
 public class UtilisateurController {
@@ -186,16 +186,17 @@ public class UtilisateurController {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
     }
   }
-public static record GoogleLoginRequest(
-    @com.fasterxml.jackson.annotation.JsonProperty("idToken") String idToken,
-    @com.fasterxml.jackson.annotation.JsonProperty("id_token") String idTokenSnake
-) {
+  public static record GoogleLoginRequest(
+      @com.fasterxml.jackson.annotation.JsonProperty("idToken") String idToken,
+      @com.fasterxml.jackson.annotation.JsonProperty("id_token") String idTokenSnake
+  ) {
   public String resolvedToken() {
     return (idToken != null && !idToken.isBlank()) ? idToken : idTokenSnake;
   }
 }
 public static record LoginRequest(String email, String motDePasse) {}
   public static record LoginResponse(String token, Utilisateur user) {}
+  public static record SendEmailRequest(String to, String subject, String body, Boolean html) {}
 
     // Récupérer un utilisateur par ID (GET /api/utilisateur/id/1)
     @GetMapping("/id/{id}")
@@ -268,7 +269,11 @@ public static record LoginRequest(String email, String motDePasse) {}
           }
           String token = buildVerificationToken(existing);
           String url = buildVerificationUrl(token);
-          mailService.sendVerificationEmail(existing.getEmail(), url);
+          mailService.sendVerificationEmail(
+              existing.getEmail(),
+              url,
+              "Merci de confirmer votre adresse email pour activer votre compte."
+          );
           existing.setMotDePasse(null);
           return ResponseEntity.ok(Map.of("user", existing, "verificationUrl", url));
         })
@@ -276,7 +281,11 @@ public static record LoginRequest(String email, String motDePasse) {}
           Utilisateur created = utilisateurService.createUserWithEmail(email);
           String token = buildVerificationToken(created);
           String url = buildVerificationUrl(token);
-          mailService.sendVerificationEmail(created.getEmail(), url);
+          mailService.sendVerificationEmail(
+              created.getEmail(),
+              url,
+              "Merci de confirmer votre adresse email pour terminer la création de votre compte."
+          );
           created.setMotDePasse(null);
           return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("user", created, "verificationUrl", url));
         });
@@ -345,6 +354,22 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
     boolean verified = utilisateurService.isEmailVerified(email);
     return ResponseEntity.ok((Object) Map.of("email", email, "verified", verified));
+  }
+
+  @PostMapping("/send-email")
+  public ResponseEntity<?> sendEmail(@RequestBody SendEmailRequest req) {
+    if (req == null || req.to() == null || req.to().isBlank()) {
+      return ResponseEntity.badRequest().body("Destinataire requis");
+    }
+    if (req.subject() == null || req.subject().isBlank()) {
+      return ResponseEntity.badRequest().body("Sujet requis");
+    }
+    if (req.body() == null || req.body().isBlank()) {
+      return ResponseEntity.badRequest().body("Contenu requis");
+    }
+    boolean isHtml = Boolean.TRUE.equals(req.html());
+    mailService.sendEmail(req.to(), req.subject(), req.body(), isHtml);
+    return ResponseEntity.ok(Map.of("success", true));
   }
     @PutMapping("/{id}")
     public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,
