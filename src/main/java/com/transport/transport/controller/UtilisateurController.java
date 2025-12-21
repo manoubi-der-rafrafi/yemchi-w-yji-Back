@@ -209,11 +209,7 @@ public static record LoginRequest(String email, String motDePasse) {}
         return ResponseEntity.ok(user);
     }
 
-    // (Optionnel) Liste de tous les utilisateurs (GET /api/utilisateur/all)
-    @GetMapping("/all")
-    public ResponseEntity<?> getAllUtilisateurs() {
-        return ResponseEntity.ok(utilisateurRepository.findAll());
-    }
+    
     @PostMapping("/register")
   public ResponseEntity<?> register(@RequestBody Utilisateur payload) {
     // Email unique ?
@@ -264,8 +260,13 @@ public static record LoginRequest(String email, String motDePasse) {}
     return utilisateurRepository.findByEmailIgnoreCase(email)
         .map(existing -> {
           boolean dejaVerifie = Boolean.TRUE.equals(existing.getVerifier());
-          if (dejaVerifie) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email deja utilise");
+          boolean hasDateCreation = existing.getDateCreation() != null;
+          if (dejaVerifie && hasDateCreation) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email deja existe");
+          }
+          if (dejaVerifie && !hasDateCreation) {
+            existing.setVerifier(null);
+            existing = utilisateurRepository.save(existing);
           }
           String token = buildVerificationToken(existing);
           String url = buildVerificationUrl(token);
