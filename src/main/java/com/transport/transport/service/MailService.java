@@ -51,11 +51,10 @@ public class MailService {
               Verifier mon email
             </a>
           </p>
-          <p>Si le bouton ne fonctionne pas, copiez-collez ce lien dans votre navigateur :</p>
-          <p><a href="%s">%s</a></p>
+          
           <p>Ce lien expire dans quelques minutes.</p>
         </div>
-        """.formatted(safeMessage, verificationUrl, verificationUrl, verificationUrl);
+        """.formatted(safeMessage, verificationUrl);
 
     sendEmail(toEmail, "Verifiez votre adresse email", html, true);
   }

@@ -58,14 +58,14 @@ public class UtilisateurService {
   public boolean isEmailVerified(String email) {
     if (email == null || email.isBlank()) return false;
     return repo.findByEmailIgnoreCase(email)
-        .map(u -> Boolean.TRUE.equals(u.getVerifier()))
+        .map(u -> Boolean.TRUE.equals(u.getIsEmailVerified()))
         .orElse(false);
   }
 
   public Utilisateur createUserWithEmail(String email) {
     Utilisateur u = new Utilisateur();
     u.setEmail(email);
-    u.setVerifier(false);
+    u.setIsEmailVerified(false);
     return saveUtilisateur(u);
   }
 

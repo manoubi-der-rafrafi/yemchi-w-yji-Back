@@ -1,33 +1,32 @@
 package com.transport.transport.controller;
 
-import com.transport.transport.model.Produit;
-import com.transport.transport.service.ProduitService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.util.Map;
+import com.transport.transport.model.Produit;
+import com.transport.transport.service.ProduitService;
 
 @RestController
 @RequestMapping("/api/produits")
@@ -128,4 +127,58 @@ public class ProduitController {
         Map uploadResult = cloudinary.uploader().upload(file.getBytes(), params);
         return Map.of("url", (String) uploadResult.get("secure_url"));
     }
+    @PostMapping("/detect")
+    public ResponseEntity<String> detectObject(@RequestParam("image") MultipartFile image) {
+
+        try {
+            // 1️⃣ Vérifier image
+            if (image.isEmpty()) {
+                return ResponseEntity.badRequest().body("image n'est pas claire");
+            }
+
+            // 2️⃣ Chemin vers python/detect.png
+            Path pythonDir = Paths.get("python");
+            Path imagePath = pythonDir.resolve("detect.png");
+
+            // 3️⃣ Créer dossier python si absent
+            if (!Files.exists(pythonDir)) {
+                Files.createDirectories(pythonDir);
+            }
+
+            // 4️⃣ Écrire l'image (écrasement)
+            Files.write(imagePath, image.getBytes());
+
+            // 5️⃣ Appeler detect.py (sans argument)
+            ProcessBuilder pb = new ProcessBuilder(
+                    "python",
+                    "python/detect.py"
+            );
+            pb.redirectErrorStream(true);
+
+            Process process = pb.start();
+
+            // 6️⃣ Lire la sortie (TEXTE SIMPLE)
+            String output = new String(
+                    process.getInputStream().readAllBytes()
+            ).trim();
+
+            process.waitFor();
+
+            // 7️⃣ Sécurité : si vide
+            if (output.isEmpty()) {
+                output = "image n'est pas claire";
+            }
+
+            // 8️⃣ Retourner le résultat final
+            return ResponseEntity.ok(output);
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("image n'est pas claire");
+        }
+    }
+
+
+
+    
+
 }

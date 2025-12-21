@@ -20,12 +20,14 @@ public class Utilisateur {
     private String email;
     private String motDePasse;
     private String telephone;
+    private String phoneCountryCode;
+    private String phoneDialCode;
 
     /**
      * Indique si l'email a été vérifié.
      * Utilisé pour le flux d'inscription/validation.
      */
-    private Boolean verifier = false;
+    private Boolean isEmailVerified = false;
 
     private Role role ;
 
@@ -78,9 +80,13 @@ public class Utilisateur {
 
     public String getTelephone() { return telephone; }
     public void setTelephone(String telephone) { this.telephone = telephone; }
+    public String getPhoneCountryCode() { return phoneCountryCode; }
+    public void setPhoneCountryCode(String phoneCountryCode) { this.phoneCountryCode = phoneCountryCode; }
+    public String getPhoneDialCode() { return phoneDialCode; }
+    public void setPhoneDialCode(String phoneDialCode) { this.phoneDialCode = phoneDialCode; }
 
-    public Boolean getVerifier() { return verifier; }
-    public void setVerifier(Boolean verifier) { this.verifier = verifier; }
+    public Boolean getIsEmailVerified() { return isEmailVerified; }
+    public void setIsEmailVerified(Boolean isEmailVerified) { this.isEmailVerified = isEmailVerified; }
 
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }

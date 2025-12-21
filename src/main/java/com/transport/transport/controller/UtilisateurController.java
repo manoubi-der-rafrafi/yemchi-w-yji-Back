@@ -268,13 +268,13 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
     return utilisateurRepository.findByEmailIgnoreCase(email)
         .map(existing -> {
-          boolean dejaVerifie = Boolean.TRUE.equals(existing.getVerifier());
+          boolean dejaVerifie = Boolean.TRUE.equals(existing.getIsEmailVerified());
           boolean hasDateCreation = existing.getDateCreation() != null;
           if (dejaVerifie && hasDateCreation) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Email deja existe");
           }
           if (dejaVerifie && !hasDateCreation) {
-            existing.setVerifier(null);
+            existing.setIsEmailVerified(null);
             existing = utilisateurRepository.save(existing);
           }
           String token = buildVerificationToken(existing);
@@ -314,7 +314,7 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
     return utilisateurRepository.findByEmailIgnoreCase(email)
         .map(u -> {
-          if (!Boolean.TRUE.equals(u.getVerifier())) {
+          if (!Boolean.TRUE.equals(u.getIsEmailVerified())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body("Email non verifie");
           }
@@ -370,7 +370,7 @@ public static record LoginRequest(String email, String motDePasse) {}
 
       return utilisateurRepository.findById(userId)
           .map(u -> {
-            u.setVerifier(true);
+            u.setIsEmailVerified(true);
             utilisateurRepository.save(u);
             u.setMotDePasse(null);
             return ResponseEntity.ok().body((Object) Map.of("message", "Email verifie", "user", u));
@@ -417,6 +417,8 @@ public static record LoginRequest(String email, String motDePasse) {}
                     if (updated.getPrenom() != null)         user.setPrenom(updated.getPrenom());
                     if (updated.getAdresse() != null)        user.setAdresse(updated.getAdresse());
                     if (updated.getTelephone() != null)      user.setTelephone(updated.getTelephone());
+                    if (updated.getPhoneCountryCode() != null) user.setPhoneCountryCode(updated.getPhoneCountryCode());
+                    if (updated.getPhoneDialCode() != null)    user.setPhoneDialCode(updated.getPhoneDialCode());
                     if (updated.getDateNaissance() != null)  user.setDateNaissance(updated.getDateNaissance());
                     if (updated.getImage() != null)          user.setImage(updated.getImage()); // URL seulement si envoyée
                     if (updated.getImageCarteIdentiteFace() != null) user.setImageCarteIdentiteFace(updated.getImageCarteIdentiteFace());
@@ -429,7 +431,7 @@ public static record LoginRequest(String email, String motDePasse) {}
                     if (updated.getEmail() != null)          user.setEmail(updated.getEmail());
                     if (updated.getRole() != null)           user.setRole(updated.getRole());
                     if (updated.getStatut() != null)         user.setStatut(updated.getStatut());
-                    if (updated.getVerifier() != null)       user.setVerifier(updated.getVerifier());
+                    if (updated.getIsEmailVerified() != null)       user.setIsEmailVerified(updated.getIsEmailVerified());
 
                     if (updated.getSousZone() != null)       user.setSousZone(updated.getSousZone());
                     if (updated.getZone() != null)           user.setZone(updated.getZone());
