@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from ultralytics import YOLO
 
-IMAGE_PATH = str(Path(__file__).resolve().parent / "detect.jpg")
+IMAGE_PATH = str(Path(__file__).resolve().parent / "detect.png")
 THRESHOLD = 0.70  # 75%
 
 def main():
