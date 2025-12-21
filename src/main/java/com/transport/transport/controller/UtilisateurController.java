@@ -120,6 +120,9 @@ public class UtilisateurController {
         if (user.getStatut() == Utilisateur.Statut.banni) {
           return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Compte banni");
         }
+        if (user.getDateCreation() == null) {
+          return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Inscription incomplÈte");
+        }
 
         String role = (user.getRole() != null) ? user.getRole().name() : "CLIENT";
 
@@ -160,6 +163,9 @@ public class UtilisateurController {
           .orElse(null);
       if (user == null) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
+      }
+      if (user.getDateCreation() == null) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Inscription incomplÈte");
       }
 
       // 3) Construire un JWT
@@ -210,7 +216,7 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
 
     
-    @PostMapping("/register")
+  @PostMapping("/register")
   public ResponseEntity<?> register(@RequestBody Utilisateur payload) {
     // Email unique ?
     if (utilisateurRepository.findByEmailIgnoreCase(payload.getEmail()).isPresent()) {
@@ -229,6 +235,9 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
     if (payload.getRole() == null) {
       payload.setRole(Utilisateur.Role.client);
+    }
+    if (payload.getDateCreation() == null) {
+      payload.setDateCreation(Instant.now().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
     }
 
     Utilisateur saved = utilisateurRepository.save(payload);
@@ -290,6 +299,32 @@ public static record LoginRequest(String email, String motDePasse) {}
           created.setMotDePasse(null);
           return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("user", created, "verificationUrl", url));
         });
+  }
+
+  @PostMapping("/register/complete")
+  public ResponseEntity<?> registerStep1Identity(@RequestBody Map<String, String> body) {
+    String email = body.get("email");
+    String nom = body.get("nom");
+    String prenom = body.get("prenom");
+    if (email == null || email.isBlank()) {
+      return ResponseEntity.badRequest().body("Email requis");
+    }
+    if (nom == null || nom.isBlank() || prenom == null || prenom.isBlank()) {
+      return ResponseEntity.badRequest().body("Nom et prenom requis");
+    }
+    return utilisateurRepository.findByEmailIgnoreCase(email)
+        .map(u -> {
+          if (!Boolean.TRUE.equals(u.getVerifier())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body("Email non verifie");
+          }
+          u.setNom(nom);
+          u.setPrenom(prenom);
+          utilisateurRepository.save(u);
+          u.setMotDePasse(null);
+          return ResponseEntity.ok(u);
+        })
+        .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouve"));
   }
 
   private String buildVerificationToken(Utilisateur user) {
