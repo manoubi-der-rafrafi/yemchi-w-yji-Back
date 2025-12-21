@@ -1,12 +1,13 @@
 import os
+from pathlib import Path
 from ultralytics import YOLO
 
-IMAGE_PATH = "python/detect.png"
+IMAGE_PATH = str(Path(__file__).resolve().parent / "detect.jpg")
 THRESHOLD = 0.70  # 75%
 
 def main():
     if not os.path.exists(IMAGE_PATH):
-        print("image n'est pas claire")
+        print("image n'est pas claire0")
         return
 
     try:
@@ -25,7 +26,7 @@ def main():
 
         # 0 objet
         if len(detections) == 0:
-            print("image n'est pas claire")
+            print("image n'est pas claire1")
             return
 
         # 1 objet
@@ -34,7 +35,7 @@ def main():
             if conf >= THRESHOLD:
                 print(label)
             else:
-                print("image n'est pas claire")
+                print("image n'est pas claire2")
             return
 
         # > 1 objet : prendre le plus confiant
@@ -42,10 +43,10 @@ def main():
         if best_conf >= THRESHOLD:
             print(best_label)
         else:
-            print("image n'est pas claire")
+            print("image n'est pas claire3")
 
     except Exception:
-        print("image n'est pas claire")
+        print("image n'est pas claire4")
 
     finally:
         # supprimer l'image après traitement
