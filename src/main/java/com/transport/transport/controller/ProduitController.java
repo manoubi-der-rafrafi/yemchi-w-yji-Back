@@ -162,7 +162,9 @@ public class ProduitController {
                     process.getInputStream().readAllBytes()
             ).trim();
 
-            process.waitFor();
+            int exitCode = process.waitFor();
+            System.out.println("[detectObject] exitCode=" + exitCode);
+            System.out.println("[detectObject] output=" + output);
 
             // 7️⃣ Sécurité : si vide
             if (output.isEmpty()) {
@@ -173,6 +175,7 @@ public class ProduitController {
             return ResponseEntity.ok(output);
 
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(500).body("image n'est pas claire");
         }
     }
