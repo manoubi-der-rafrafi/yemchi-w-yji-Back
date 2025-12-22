@@ -9,6 +9,10 @@ RUN mvn -B clean package -DskipTests
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
+# Hugging Face cache (keep model in image and reuse at runtime)
+ENV HF_HOME=/app/.cache/huggingface
+ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
+
 # Python (minimum)
 RUN apt-get update && \
     apt-get install -y python3 python3-pip && \
