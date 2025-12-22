@@ -7,6 +7,7 @@ from pathlib import Path
 from PIL import Image
 from transformers import pipeline
 from transformers.utils import logging as hf_logging
+from huggingface_hub import snapshot_download
 
 # =========================
 # CONFIG
@@ -14,6 +15,7 @@ from transformers.utils import logging as hf_logging
 IMAGE_PATH = Path(__file__).resolve().parent / "download.jpg"
 MODEL_NAME = "Salesforce/blip-image-captioning-base"
 MAX_NEW_TOKENS = 30
+MODEL_NOT_CACHED = "MODEL_NOT_CACHED"
 
 
 # =========================
@@ -72,9 +74,22 @@ def _load_image():
     return Image.open(IMAGE_PATH).convert("RGB")
 
 
+def _is_model_cached() -> bool:
+    try:
+        # Try to resolve files locally without downloading
+        snapshot_download(repo_id=MODEL_NAME, local_files_only=True, allow_patterns=["*.json", "*.bin", "*.safetensors"])
+        return True
+    except Exception:
+        return False
+
+
 def main():
     warnings.filterwarnings("ignore", category=FutureWarning)
     hf_logging.set_verbosity_error()
+
+    if not _is_model_cached():
+        print(MODEL_NOT_CACHED)
+        return
 
     img = _load_image()
     if img is None:

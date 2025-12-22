@@ -128,6 +128,7 @@ public class ProduitController {
     public ResponseEntity<String> detectObject(@RequestParam("image") MultipartFile image) {
 
         long startMs = System.currentTimeMillis();
+        final String modelNotCached = "MODEL_NOT_CACHED";
         try {
             if (image.isEmpty()) {
                 return ResponseEntity.badRequest().body("image n'est pas claire");
@@ -189,6 +190,11 @@ public class ProduitController {
             System.out.println("[detectObject] output=" + output);
             if (!errorOutput.isEmpty()) {
                 System.out.println("[detectObject] stderr=" + errorOutput);
+            }
+
+            if (modelNotCached.equals(output)) {
+                System.out.println("[detectObject] model download required; skipping detect");
+                return ResponseEntity.status(503).body("modele non disponible");
             }
 
             if (output.isEmpty()) {
