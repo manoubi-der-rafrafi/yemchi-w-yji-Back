@@ -24,8 +24,8 @@ COPY python/ python/
 RUN pip3 install --no-cache-dir \
     torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
-# Transformers + Pillow (BLIP)
-RUN pip3 install --no-cache-dir transformers pillow
+# Transformers + Pillow (BLIP) + API server
+RUN pip3 install --no-cache-dir transformers pillow fastapi uvicorn
 
 # (Optionnel) Pré-télécharger BLIP au build (cache HF)
 RUN python3 - <<'PY'
@@ -34,5 +34,5 @@ _ = pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
 print("BLIP model cached.")
 PY
 
-EXPOSE 8081
-ENTRYPOINT ["java", "-jar", "app.jar"]
+EXPOSE 8081 8000
+ENTRYPOINT ["sh", "-c", "python3 /app/python/serve.py & java -jar app.jar"]

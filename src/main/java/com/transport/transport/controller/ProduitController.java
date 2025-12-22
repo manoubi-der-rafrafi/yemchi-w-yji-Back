@@ -1,6 +1,11 @@
 package com.transport.transport.controller;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -128,7 +133,6 @@ public class ProduitController {
     public ResponseEntity<String> detectObject(@RequestParam("image") MultipartFile image) {
 
         long startMs = System.currentTimeMillis();
-        final String modelNotCached = "MODEL_NOT_CACHED";
         try {
             if (image.isEmpty()) {
                 return ResponseEntity.badRequest().body("image n'est pas claire");
@@ -138,63 +142,31 @@ public class ProduitController {
                     + " contentType=" + image.getContentType()
                     + " filename=" + image.getOriginalFilename());
 
-            ProcessBuilder pb = new ProcessBuilder(
-                    "python3",
-                    "python/detect.py"
-            );
-            pb.redirectErrorStream(false);
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
 
-            Process process = pb.start();
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("http://localhost:8000/detect"))
+                    .timeout(Duration.ofSeconds(20))
+                    .header("Content-Type", "application/octet-stream")
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(image.getBytes()))
+                    .build();
 
-            try (var os = process.getOutputStream()) {
-                os.write(image.getBytes());
-                os.flush();
-            }
-
-            var stdoutRef = new java.util.concurrent.atomic.AtomicReference<byte[]>();
-            var stderrRef = new java.util.concurrent.atomic.AtomicReference<byte[]>();
-
-            Thread stdoutThread = new Thread(() -> {
-                try {
-                    stdoutRef.set(process.getInputStream().readAllBytes());
-                } catch (IOException e) {
-                    stdoutRef.set(new byte[0]);
-                }
-            });
-
-            Thread stderrThread = new Thread(() -> {
-                try {
-                    stderrRef.set(process.getErrorStream().readAllBytes());
-                } catch (IOException e) {
-                    stderrRef.set(new byte[0]);
-                }
-            });
-
-            stdoutThread.start();
-            stderrThread.start();
-
-            int exitCode = process.waitFor();
-            stdoutThread.join();
-            stderrThread.join();
-
-            String output = new String(
-                    stdoutRef.get() == null ? new byte[0] : stdoutRef.get()
-            ).trim();
-
-            String errorOutput = new String(
-                    stderrRef.get() == null ? new byte[0] : stderrRef.get()
-            ).trim();
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
 
             long durationMs = System.currentTimeMillis() - startMs;
-            System.out.println("[detectObject] exitCode=" + exitCode + " durationMs=" + durationMs);
-            System.out.println("[detectObject] output=" + output);
-            if (!errorOutput.isEmpty()) {
-                System.out.println("[detectObject] stderr=" + errorOutput);
+            System.out.println("[detectObject] status=" + resp.statusCode() + " durationMs=" + durationMs);
+
+            String output = resp.body() == null ? "" : resp.body().trim();
+
+            if (resp.statusCode() == 503) {
+                System.out.println("[detectObject] model not ready");
+                return ResponseEntity.status(503).body("modele non disponible");
             }
 
-            if (modelNotCached.equals(output)) {
-                System.out.println("[detectObject] model download required; skipping detect");
-                return ResponseEntity.status(503).body("modele non disponible");
+            if (resp.statusCode() >= 400) {
+                return ResponseEntity.status(500).body("image n'est pas claire");
             }
 
             if (output.isEmpty()) {
