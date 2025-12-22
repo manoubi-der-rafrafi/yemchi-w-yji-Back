@@ -127,16 +127,21 @@ public class ProduitController {
     @PostMapping("/detect")
     public ResponseEntity<String> detectObject(@RequestParam("image") MultipartFile image) {
 
+        long startMs = System.currentTimeMillis();
         try {
             if (image.isEmpty()) {
                 return ResponseEntity.badRequest().body("image n'est pas claire");
             }
 
+            System.out.println("[detectObject] start size=" + image.getSize()
+                    + " contentType=" + image.getContentType()
+                    + " filename=" + image.getOriginalFilename());
+
             ProcessBuilder pb = new ProcessBuilder(
                     "python3",
                     "python/detect.py"
             );
-            pb.redirectErrorStream(true);
+            pb.redirectErrorStream(false);
 
             Process process = pb.start();
 
@@ -145,13 +150,46 @@ public class ProduitController {
                 os.flush();
             }
 
-            String output = new String(
-                    process.getInputStream().readAllBytes()
-            ).trim();
+            var stdoutRef = new java.util.concurrent.atomic.AtomicReference<byte[]>();
+            var stderrRef = new java.util.concurrent.atomic.AtomicReference<byte[]>();
+
+            Thread stdoutThread = new Thread(() -> {
+                try {
+                    stdoutRef.set(process.getInputStream().readAllBytes());
+                } catch (IOException e) {
+                    stdoutRef.set(new byte[0]);
+                }
+            });
+
+            Thread stderrThread = new Thread(() -> {
+                try {
+                    stderrRef.set(process.getErrorStream().readAllBytes());
+                } catch (IOException e) {
+                    stderrRef.set(new byte[0]);
+                }
+            });
+
+            stdoutThread.start();
+            stderrThread.start();
 
             int exitCode = process.waitFor();
-            System.out.println("[detectObject] exitCode=" + exitCode);
+            stdoutThread.join();
+            stderrThread.join();
+
+            String output = new String(
+                    stdoutRef.get() == null ? new byte[0] : stdoutRef.get()
+            ).trim();
+
+            String errorOutput = new String(
+                    stderrRef.get() == null ? new byte[0] : stderrRef.get()
+            ).trim();
+
+            long durationMs = System.currentTimeMillis() - startMs;
+            System.out.println("[detectObject] exitCode=" + exitCode + " durationMs=" + durationMs);
             System.out.println("[detectObject] output=" + output);
+            if (!errorOutput.isEmpty()) {
+                System.out.println("[detectObject] stderr=" + errorOutput);
+            }
 
             if (output.isEmpty()) {
                 output = "image n'est pas claire";
@@ -160,6 +198,8 @@ public class ProduitController {
             return ResponseEntity.ok(output);
 
         } catch (Exception e) {
+            long durationMs = System.currentTimeMillis() - startMs;
+            System.out.println("[detectObject] failed durationMs=" + durationMs);
             e.printStackTrace();
             return ResponseEntity.status(500).body("image n'est pas claire");
         }
