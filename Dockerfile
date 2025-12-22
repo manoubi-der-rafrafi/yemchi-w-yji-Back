@@ -9,9 +9,9 @@ RUN mvn -B clean package -DskipTests
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
-# Python + libs système (IMPORTANT)
+# Python (minimum)
 RUN apt-get update && \
-    apt-get install -y python3 python3-pip libgl1 libglib2.0-0 && \
+    apt-get install -y python3 python3-pip && \
     rm -rf /var/lib/apt/lists/*
 
 # Copier jar
@@ -20,18 +20,19 @@ COPY --from=build /app/target/transport-0.0.1-SNAPSHOT.jar app.jar
 # Copier python/
 COPY python/ python/
 
-# PyTorch CPU (index pytorch)
+# PyTorch CPU
 RUN pip3 install --no-cache-dir \
     torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
-# Ultralytics + OpenCV headless (PyPI)
-RUN pip3 install --no-cache-dir ultralytics opencv-python-headless
+# Transformers + Pillow (BLIP)
+RUN pip3 install --no-cache-dir transformers pillow
 
-# Télécharger le modèle au build (optionnel)
-RUN python3 - <<EOF
-from ultralytics import YOLO
-YOLO("yolov8n.pt")
-EOF
+# (Optionnel) Pré-télécharger BLIP au build (cache HF)
+RUN python3 - <<'PY'
+from transformers import pipeline
+_ = pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
+print("BLIP model cached.")
+PY
 
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]

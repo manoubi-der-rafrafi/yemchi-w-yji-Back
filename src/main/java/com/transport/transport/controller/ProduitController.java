@@ -1,9 +1,6 @@
 package com.transport.transport.controller;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -131,24 +128,10 @@ public class ProduitController {
     public ResponseEntity<String> detectObject(@RequestParam("image") MultipartFile image) {
 
         try {
-            // 1️⃣ Vérifier image
             if (image.isEmpty()) {
                 return ResponseEntity.badRequest().body("image n'est pas claire");
             }
 
-            // 2️⃣ Chemin vers python/detect.png
-            Path pythonDir = Paths.get("python");
-            Path imagePath = pythonDir.resolve("detect.png");
-
-            // 3️⃣ Créer dossier python si absent
-            if (!Files.exists(pythonDir)) {
-                Files.createDirectories(pythonDir);
-            }
-
-            // 4️⃣ Écrire l'image (écrasement)
-            Files.write(imagePath, image.getBytes());
-
-            // 5️⃣ Appeler detect.py (sans argument)
             ProcessBuilder pb = new ProcessBuilder(
                     "python",
                     "python/detect.py"
@@ -157,7 +140,11 @@ public class ProduitController {
 
             Process process = pb.start();
 
-            // 6️⃣ Lire la sortie (TEXTE SIMPLE)
+            try (var os = process.getOutputStream()) {
+                os.write(image.getBytes());
+                os.flush();
+            }
+
             String output = new String(
                     process.getInputStream().readAllBytes()
             ).trim();
@@ -166,12 +153,10 @@ public class ProduitController {
             System.out.println("[detectObject] exitCode=" + exitCode);
             System.out.println("[detectObject] output=" + output);
 
-            // 7️⃣ Sécurité : si vide
             if (output.isEmpty()) {
                 output = "image n'est pas claire";
             }
 
-            // 8️⃣ Retourner le résultat final
             return ResponseEntity.ok(output);
 
         } catch (Exception e) {
