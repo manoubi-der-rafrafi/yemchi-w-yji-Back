@@ -133,7 +133,7 @@ public class ProduitController {
             }
 
             ProcessBuilder pb = new ProcessBuilder(
-                    "python",
+                    "python3",
                     "python/detect.py"
             );
             pb.redirectErrorStream(true);
