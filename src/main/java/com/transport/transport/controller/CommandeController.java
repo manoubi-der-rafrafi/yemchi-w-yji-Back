@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.transport.transport.model.Commande;
+import com.transport.transport.model.TypeVehicule;
 import com.transport.transport.service.CommandeService;
 
 @RestController
@@ -120,6 +121,16 @@ public class CommandeController {
     public List<Commande> getCommandesConfirmeesByZone(@PathVariable Commande.Zone zone) {
         return commandeService.getCommandesByZonePrincipaleConfirmees(zone);
     }
+    @GetMapping("/zone/{zone}/vehicule/{vehicule}")
+    public ResponseEntity<List<Commande>> getCommandesByZoneAndVehicule(
+            @PathVariable Commande.Zone zone,
+            @PathVariable TypeVehicule vehicule) {
+        try {
+            return ResponseEntity.ok(commandeService.getCommandesByZonePrincipaleAndVehicule(zone, vehicule));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
     @PutMapping("/{idCommande}/assigner/{idTransporteur}")
 public ResponseEntity<Commande> assignerTransporteur(
         @PathVariable String idCommande,
@@ -127,6 +138,8 @@ public ResponseEntity<Commande> assignerTransporteur(
     try {
         Commande commande = commandeService.assignerTransporteur(idCommande, idTransporteur);
         return ResponseEntity.ok(commande);
+    } catch (IllegalStateException e) {
+        return ResponseEntity.badRequest().build();
     } catch (IllegalArgumentException e) {
         return ResponseEntity.notFound().build();
     }
@@ -149,6 +162,42 @@ public ResponseEntity<List<Commande>> getCommandesBySousZones(@RequestBody SousZ
         return ResponseEntity.badRequest().build();
     }
 }
+@PostMapping("/sous-zones/vehicule")
+public ResponseEntity<List<Commande>> getCommandesBySousZonesAndVehicule(
+        @RequestBody SousZoneVehiculeFilterRequest request) {
+    if (request == null) {
+        return ResponseEntity.badRequest().build();
+    }
+    try {
+        List<Commande> commandes = commandeService.getCommandesBySousZonesAndVehicule(
+                request.getSousZonesDepart(),
+                request.getSousZonesArrivee(),
+                request.getVehicule());
+        return ResponseEntity.ok(commandes);
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.badRequest().build();
+    }
+}
+
+@PutMapping("/{id}/scan-depart")
+public ResponseEntity<Commande> marquerDepartScanne(@PathVariable String id) {
+    try {
+        Commande commande = commandeService.marquerDepartScanne(id);
+        return ResponseEntity.ok(commande);
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.notFound().build();
+    }
+}
+
+@PutMapping("/{id}/scan-reception")
+public ResponseEntity<Commande> marquerReceptionScanne(@PathVariable String id) {
+    try {
+        Commande commande = commandeService.marquerReceptionScanne(id);
+        return ResponseEntity.ok(commande);
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.notFound().build();
+    }
+}
 
 public static class SousZoneFilterRequest {
     private List<Commande.SousZone> sousZonesDepart;
@@ -168,6 +217,35 @@ public static class SousZoneFilterRequest {
 
     public void setSousZonesArrivee(List<Commande.SousZone> sousZonesArrivee) {
         this.sousZonesArrivee = sousZonesArrivee;
+    }
+}
+public static class SousZoneVehiculeFilterRequest {
+    private List<Commande.SousZone> sousZonesDepart;
+    private List<Commande.SousZone> sousZonesArrivee;
+    private TypeVehicule vehicule;
+
+    public List<Commande.SousZone> getSousZonesDepart() {
+        return sousZonesDepart;
+    }
+
+    public void setSousZonesDepart(List<Commande.SousZone> sousZonesDepart) {
+        this.sousZonesDepart = sousZonesDepart;
+    }
+
+    public List<Commande.SousZone> getSousZonesArrivee() {
+        return sousZonesArrivee;
+    }
+
+    public void setSousZonesArrivee(List<Commande.SousZone> sousZonesArrivee) {
+        this.sousZonesArrivee = sousZonesArrivee;
+    }
+
+    public TypeVehicule getVehicule() {
+        return vehicule;
+    }
+
+    public void setVehicule(TypeVehicule vehicule) {
+        this.vehicule = vehicule;
     }
 }
 

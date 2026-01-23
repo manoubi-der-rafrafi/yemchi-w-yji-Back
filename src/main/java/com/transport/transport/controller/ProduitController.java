@@ -5,12 +5,14 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -38,6 +40,13 @@ public class ProduitController {
     private ProduitService produitService;
     private final String uploadBaseDir = "C:/Users/Lenovo/Desktop/angular/transport/public/produits";
     private final Cloudinary cloudinary;
+
+    @Value("${PYTHON_URL:http://127.0.0.1:8000}")
+    private String pythonUrl;
+
+    private static final HttpClient CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
 
     public ProduitController(Cloudinary cloudinary) {
         this.cloudinary = cloudinary;
@@ -135,25 +144,23 @@ public class ProduitController {
         long startMs = System.currentTimeMillis();
         try {
             if (image.isEmpty()) {
-                return ResponseEntity.badRequest().body("image n'est pas claire");
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"object\":\"objet inconnu\",\"median_weight_kg\":0.0}");
             }
 
             System.out.println("[detectObject] start size=" + image.getSize()
                     + " contentType=" + image.getContentType()
                     + " filename=" + image.getOriginalFilename());
 
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(5))
-                    .build();
-
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create("http://localhost:8000/detect"))
-                    .timeout(Duration.ofSeconds(20))
+                    .uri(URI.create(pythonUrl + "/detect"))
+                    .timeout(Duration.ofSeconds(120))
                     .header("Content-Type", "application/octet-stream")
                     .POST(HttpRequest.BodyPublishers.ofByteArray(image.getBytes()))
                     .build();
 
-            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> resp = CLIENT.send(req, HttpResponse.BodyHandlers.ofString());
 
             long durationMs = System.currentTimeMillis() - startMs;
             System.out.println("[detectObject] status=" + resp.statusCode() + " durationMs=" + durationMs);
@@ -166,25 +173,39 @@ public class ProduitController {
             }
 
             if (resp.statusCode() >= 400) {
-                return ResponseEntity.status(500).body("image n'est pas claire");
+                String message = output.isEmpty() ? "image n'est pas claire" : output;
+                if ("No weight values found in search results".equals(message)) {
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body("{\"object\":\"objet inconnu\",\"median_weight_kg\":0.01}");
+                }
+                if ("image n'est pas claire".equals(message)) {
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .body("{\"object\":\"objet inconnu\",\"median_weight_kg\":0.0}");
+                }
+                return ResponseEntity.status(resp.statusCode()).body(message);
             }
 
-            if (output.isEmpty()) {
-                output = "image n'est pas claire";
+            if (output.isEmpty() || "image n'est pas claire".equals(output)) {
+                return ResponseEntity.ok()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"object\":\"objet inconnu\",\"median_weight_kg\":0.0}");
             }
 
-            return ResponseEntity.ok(output);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(output);
 
+        } catch (HttpTimeoutException e) {
+            long durationMs = System.currentTimeMillis() - startMs;
+            System.out.println("[detectObject] timeout durationMs=" + durationMs + " msg=" + e.getMessage());
+            return ResponseEntity.status(504).body("service detection trop lent (timeout)");
         } catch (Exception e) {
             long durationMs = System.currentTimeMillis() - startMs;
             System.out.println("[detectObject] failed durationMs=" + durationMs);
             e.printStackTrace();
-            return ResponseEntity.status(500).body("image n'est pas claire");
+            return ResponseEntity.status(500).body("erreur interne detection");
         }
     }
-
-
-
-    
-
 }

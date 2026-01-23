@@ -33,6 +33,9 @@ public class Commande {
 
     private Statut statut;
     private BigDecimal prix;
+    private BigDecimal poids;
+    private BigDecimal volume;
+    private TypeVehicule vehicule;
     private ModePaiement modePaiement;
     private String instructions;
 
@@ -64,7 +67,12 @@ public class Commande {
     private Double longitudeDestination;
     private Double distanceKm;
 
+    @JsonAlias({ "sous_zone_depart", "sousZoneDepart" })
+    @JsonProperty("sous_zone_depart")
     private SousZone sousZoneDepart;
+
+    @JsonAlias({ "sous_zone_arrivee", "sousZoneArrivee" })
+    @JsonProperty("sous_zone_arrivee")
     private SousZone sousZoneArrivee;
 
     @com.fasterxml.jackson.annotation.JsonAlias("zonePrincipaleDepart")
@@ -86,7 +94,9 @@ public class Commande {
 
     // --- Enums ---
     public enum Statut {
+        ANNULEE,
         annulee,
+        en_attende,
         en_attente,
         en_cours,
         livree,
@@ -118,6 +128,7 @@ public enum Zone {
 // --- Enum pour les sous-zones (zones détaillées pour scooters) ---
 public enum SousZone {
     // Grand Tunis
+    TUNIS,
     TUNIS_CENTRE,
     ARIANA_NORD,
     BEN_AROUS_SUD,
@@ -169,6 +180,15 @@ public enum SousZone {
 
     public BigDecimal getPrix() { return prix; }
     public void setPrix(BigDecimal prix) { this.prix = prix; }
+
+    public BigDecimal getPoids() { return poids; }
+    public void setPoids(BigDecimal poids) { this.poids = poids; }
+
+    public BigDecimal getVolume() { return volume; }
+    public void setVolume(BigDecimal volume) { this.volume = volume; }
+
+    public TypeVehicule getVehicule() { return vehicule; }
+    public void setVehicule(TypeVehicule vehicule) { this.vehicule = vehicule; }
 
     public ModePaiement getModePaiement() { return modePaiement; }
     public void setModePaiement(ModePaiement modePaiement) { this.modePaiement = modePaiement; }
@@ -273,5 +293,15 @@ public enum SousZone {
 
     public void setDateScanReception(LocalDateTime dateScanReception) {
         this.dateScanReception = dateScanReception;
+    }
+
+    public void marquerDepartScanne() {
+        this.qrCodeDepartScanne = true;
+        this.dateScanDepart = LocalDateTime.now();
+    }
+
+    public void marquerReceptionScanne() {
+        this.qrCodeReceptionScanne = true;
+        this.dateScanReception = LocalDateTime.now();
     }
 }

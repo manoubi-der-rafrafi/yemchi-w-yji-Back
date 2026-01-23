@@ -417,6 +417,7 @@ public static record LoginRequest(String email, String motDePasse) {}
                     if (updated.getPrenom() != null)         user.setPrenom(updated.getPrenom());
                     if (updated.getAdresse() != null)        user.setAdresse(updated.getAdresse());
                     if (updated.getTelephone() != null)      user.setTelephone(updated.getTelephone());
+                    if (updated.getIdentifiant() != null)    user.setIdentifiant(updated.getIdentifiant());
                     if (updated.getPhoneCountryCode() != null) user.setPhoneCountryCode(updated.getPhoneCountryCode());
                     if (updated.getPhoneDialCode() != null)    user.setPhoneDialCode(updated.getPhoneDialCode());
                     if (updated.getDateNaissance() != null)  user.setDateNaissance(updated.getDateNaissance());
@@ -435,6 +436,8 @@ public static record LoginRequest(String email, String motDePasse) {}
 
                     if (updated.getSousZone() != null)       user.setSousZone(updated.getSousZone());
                     if (updated.getZone() != null)           user.setZone(updated.getZone());
+                    if (updated.getZoneDepart() != null)     user.setZoneDepart(updated.getZoneDepart());
+                    if (updated.getZoneAriver() != null)     user.setZoneAriver(updated.getZoneAriver());
 
                     // Nouveaux champs: latitude / longitude (si tu utilises Double)
                     if (updated.getLatitude() != 0.0) user.setLatitude(updated.getLatitude());
@@ -581,6 +584,21 @@ public ResponseEntity<Utilisateur> updateSousZone(
     @PathVariable Utilisateur.SousZone sousZone
 ) {
   Utilisateur updated = utilisateurService.updateSousZone(id, sousZone);
+  return ResponseEntity.ok(updated);
+}
+
+public static record UpdateZonesRequest(
+    Map<String, List<String>> zoneDepart,
+    Map<String, List<String>> zoneAriver
+) {}
+
+// PUT /api/utilisateur/{id}/zones-depart-arriver
+@PutMapping("/{id}/zones-depart-arriver")
+public ResponseEntity<Utilisateur> updateZoneAriverDepart(
+    @PathVariable String id,
+    @RequestBody UpdateZonesRequest body
+) {
+  Utilisateur updated = utilisateurService.updateZonesDepartAriver(id, body.zoneDepart(), body.zoneAriver());
   return ResponseEntity.ok(updated);
 }
 

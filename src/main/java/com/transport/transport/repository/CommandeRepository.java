@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
 import com.transport.transport.model.Commande;
+import com.transport.transport.model.TypeVehicule;
 
 @Repository
 public interface CommandeRepository extends MongoRepository<Commande, String> {
@@ -24,5 +25,18 @@ List<Commande> findByTransporteurIdOrderByDateDemandeDesc(String transporteurId)
     List<Commande> findBySousZoneDepartInAndSousZoneArriveeIn(
         List<Commande.SousZone> sousZonesDepart,
         List<Commande.SousZone> sousZonesArrivee);
+    List<Commande> findBySousZoneDepartInAndSousZoneArriveeInAndVehicule(
+        List<Commande.SousZone> sousZonesDepart,
+        List<Commande.SousZone> sousZonesArrivee,
+        TypeVehicule vehicule);
+    List<Commande> findBySousZoneDepartInAndSousZoneArriveeInAndVehiculeAndStatut(
+        List<Commande.SousZone> sousZonesDepart,
+        List<Commande.SousZone> sousZonesArrivee,
+        TypeVehicule vehicule,
+        Commande.Statut statut);
+    List<Commande> findByZonePrincipaleDepartAndZonePrincipaleArriveeAndVehicule(
+        Commande.Zone zoneDepart,
+        Commande.Zone zoneArrivee,
+        TypeVehicule vehicule);
 
 }

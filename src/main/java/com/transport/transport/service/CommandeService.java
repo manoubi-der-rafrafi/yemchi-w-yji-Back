@@ -10,14 +10,19 @@ import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Commande.Statut;
+import com.transport.transport.model.TypeVehicule;
 import com.transport.transport.repository.CommandeRepository;
 import com.transport.transport.repository.UtilisateurRepository;
 
 @Service
 public class CommandeService {
+
+    private static final Logger logger = LoggerFactory.getLogger(CommandeService.class);
 
     @Autowired
     private final CommandeRepository commandeRepository;
@@ -51,6 +56,7 @@ public class CommandeService {
 
     // Mettre a jour une commande existante
     public Commande updateCommande(String id, Commande details) {
+        logger.info("updateCommande id={} vehicule={}", id, details.getVehicule());
         return commandeRepository.findById(id).map(commande -> {
             // copie EXPLICITE de tous les champs que tu veux rendre modifiables
             if (details.getLocalisationDepart() != null) {
@@ -77,6 +83,12 @@ public class CommandeService {
             }
             if (details.getPrix() != null) {
                 commande.setPrix(details.getPrix());
+            }
+            if (details.getPoids() != null) {
+                commande.setPoids(details.getPoids());
+            }
+            if (details.getVolume() != null) {
+                commande.setVolume(details.getVolume());
             }
             if (details.getModePaiement() != null) {
                 commande.setModePaiement(details.getModePaiement());
@@ -140,7 +152,9 @@ public class CommandeService {
             if (details.getDateScanReception() != null) {
                 commande.setDateScanReception(details.getDateScanReception());
             }
-
+            if (details.getVehicule() != null) {
+                commande.setVehicule(details.getVehicule());
+            }
             // --- Met a jour la date de modification automatique ---
             commande.setMajLe(LocalDateTime.now());
             return commandeRepository.save(commande);
@@ -149,6 +163,7 @@ public class CommandeService {
 
     public Commande updateCommandePatch(String id, Commande patch) {
 
+    logger.info("updateCommandePatch id={} vehicule={}", id, patch.getVehicule());
     return commandeRepository.findById(id).map(new Function<Commande, Commande>() {
         @Override
         public Commande apply(Commande existing) {
@@ -214,8 +229,23 @@ public class CommandeService {
      return commandeRepository.findByStatutAndZonePrincipale(
          Statut.confirmer, zone, Sort.by(Sort.Direction.DESC, "dateDemande"));
 }
+public List<Commande> getCommandesByZonePrincipaleAndVehicule(
+        Commande.Zone zone,
+        TypeVehicule vehicule) {
+    if (zone == null) {
+        throw new IllegalArgumentException("La zone est obligatoire");
+    }
+    if (vehicule == null) {
+        throw new IllegalArgumentException("Le type de vehicule est obligatoire");
+    }
+    return commandeRepository.findByZonePrincipaleDepartAndZonePrincipaleArriveeAndVehicule(
+            zone, zone, vehicule);
+}
 public Commande assignerTransporteur(String idCommande, String idTransporteur) {
     return commandeRepository.findById(idCommande).map(commande -> {
+        if (commande.getTransporteurId() != null) {
+            throw new IllegalStateException("Commande deja assignee a un transporteur");
+        }
         commande.setTransporteurId(idTransporteur);
         commande.setMajLe(LocalDateTime.now());
         commande.setStatut(Statut.en_route);
@@ -232,6 +262,36 @@ public List<Commande> getCommandesBySousZones(
         throw new IllegalArgumentException("Les listes de sous-zones doivent etre renseignees");
     }
     return commandeRepository.findBySousZoneDepartInAndSousZoneArriveeIn(sousZonesDepart, sousZonesArrivee);
+}
+public List<Commande> getCommandesBySousZonesAndVehicule(
+        List<Commande.SousZone> sousZonesDepart,
+        List<Commande.SousZone> sousZonesArrivee,
+        TypeVehicule vehicule) {
+    if (sousZonesDepart == null || sousZonesArrivee == null || sousZonesDepart.isEmpty() || sousZonesArrivee.isEmpty()) {
+        throw new IllegalArgumentException("Les listes de sous-zones doivent etre renseignees");
+    }
+    if (vehicule == null) {
+        throw new IllegalArgumentException("Le type de vehicule est obligatoire");
+    }
+    return commandeRepository.findBySousZoneDepartInAndSousZoneArriveeInAndVehiculeAndStatut(
+            sousZonesDepart, sousZonesArrivee, vehicule, Commande.Statut.confirmer);
+}
+
+public Commande marquerDepartScanne(String id) {
+    return commandeRepository.findById(id).map(commande -> {
+        commande.marquerDepartScanne();
+        commande.setMajLe(LocalDateTime.now());
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
+public Commande marquerReceptionScanne(String id) {
+    return commandeRepository.findById(id).map(commande -> {
+        commande.marquerReceptionScanne();
+        commande.setStatut(Statut.livree);
+        commande.setMajLe(LocalDateTime.now());
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
 

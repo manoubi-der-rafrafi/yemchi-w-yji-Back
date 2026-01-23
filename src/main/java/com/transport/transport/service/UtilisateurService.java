@@ -200,4 +200,18 @@ public class UtilisateurService {
     u.setMotDePasse(null);
     return u;
   }
+
+  public Utilisateur updateZonesDepartAriver(
+      String userId,
+      java.util.Map<String, java.util.List<String>> zoneDepart,
+      java.util.Map<String, java.util.List<String>> zoneAriver
+  ) {
+    Utilisateur u = repo.findById(userId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+    u.setZoneDepart(zoneDepart);
+    u.setZoneAriver(zoneAriver);
+    repo.save(u);
+    u.setMotDePasse(null);
+    return u;
+  }
 }

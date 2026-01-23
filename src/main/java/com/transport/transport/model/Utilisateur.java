@@ -2,7 +2,10 @@ package com.transport.transport.model;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -20,6 +23,7 @@ public class Utilisateur {
     private String email;
     private String motDePasse;
     private String telephone;
+    private String identifiant;
     private String phoneCountryCode;
     private String phoneDialCode;
 
@@ -53,6 +57,9 @@ public class Utilisateur {
     private double longitude;
     private SousZone sousZone;
     private Zone zone;
+    private Map<String, List<String>> zoneDepart;
+    @JsonAlias("zoneArriver")
+    private Map<String, List<String>> zoneAriver;
     public enum Role { client, transporteur, admin }
     public enum Statut { actif, inactif, banni }
 
@@ -80,6 +87,9 @@ public class Utilisateur {
 
     public String getTelephone() { return telephone; }
     public void setTelephone(String telephone) { this.telephone = telephone; }
+
+    public String getIdentifiant() { return identifiant; }
+    public void setIdentifiant(String identifiant) { this.identifiant = identifiant; }
     public String getPhoneCountryCode() { return phoneCountryCode; }
     public void setPhoneCountryCode(String phoneCountryCode) { this.phoneCountryCode = phoneCountryCode; }
     public String getPhoneDialCode() { return phoneDialCode; }
@@ -137,6 +147,12 @@ public class Utilisateur {
     public Zone getZone() { return zone; }
     public void setZone(Zone zone) { this.zone = zone; }
 
+    public Map<String, List<String>> getZoneDepart() { return zoneDepart; }
+    public void setZoneDepart(Map<String, List<String>> zoneDepart) { this.zoneDepart = zoneDepart; }
+
+    public Map<String, List<String>> getZoneAriver() { return zoneAriver; }
+    public void setZoneAriver(Map<String, List<String>> zoneAriver) { this.zoneAriver = zoneAriver; }
+
 
     // --- Enum pour les grandes zones (régions principales) ---
 public enum Zone {
@@ -151,6 +167,7 @@ public enum Zone {
 // --- Enum pour les sous-zones (zones détaillées pour scooters) ---
 public enum SousZone {
     // Grand Tunis
+    TUNIS,
     TUNIS_CENTRE,
     ARIANA_NORD,
     BEN_AROUS_SUD,
