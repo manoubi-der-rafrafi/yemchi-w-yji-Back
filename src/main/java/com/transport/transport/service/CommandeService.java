@@ -1,5 +1,6 @@
 package com.transport.transport.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -254,6 +255,39 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
 }
 public List<Commande> getCommandesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur);
+}
+public BigDecimal getSommePrixCommandesLivreesByTransporteur(String idTransporteur) {
+    List<Commande> commandes = commandeRepository.findByTransporteurIdAndStatut(
+            idTransporteur, Commande.Statut.livree);
+    BigDecimal total = BigDecimal.ZERO;
+    for (Commande commande : commandes) {
+        if (commande.getPrix() != null) {
+            total = total.add(commande.getPrix());
+        }
+    }
+    return total;
+}
+public BigDecimal getSommePrixCommandesLivreesEnLigneByTransporteur(String idTransporteur) {
+    List<Commande> commandes = commandeRepository.findByTransporteurIdAndStatutAndModePaiement(
+            idTransporteur, Commande.Statut.livree, Commande.ModePaiement.EN_LIGNE);
+    BigDecimal total = BigDecimal.ZERO;
+    for (Commande commande : commandes) {
+        if (commande.getPrix() != null) {
+            total = total.add(commande.getPrix());
+        }
+    }
+    return total;
+}
+public BigDecimal getSommePrixCommandesLivreesHorsLigneByTransporteur(String idTransporteur) {
+    List<Commande> commandes = commandeRepository.findByTransporteurIdAndStatutAndModePaiementNot(
+            idTransporteur, Commande.Statut.livree, Commande.ModePaiement.EN_LIGNE);
+    BigDecimal total = BigDecimal.ZERO;
+    for (Commande commande : commandes) {
+        if (commande.getPrix() != null) {
+            total = total.add(commande.getPrix());
+        }
+    }
+    return total;
 }
 public List<Commande> getCommandesBySousZones(
         List<Commande.SousZone> sousZonesDepart,

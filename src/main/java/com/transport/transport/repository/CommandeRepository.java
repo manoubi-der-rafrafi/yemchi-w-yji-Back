@@ -22,6 +22,15 @@ public interface CommandeRepository extends MongoRepository<Commande, String> {
 )
 List<Commande> findByStatutAndZonePrincipale(Commande.Statut statut, Commande.Zone zone, org.springframework.data.domain.Sort sort);
 List<Commande> findByTransporteurIdOrderByDateDemandeDesc(String transporteurId);
+List<Commande> findByTransporteurIdAndStatut(String transporteurId, Commande.Statut statut);
+List<Commande> findByTransporteurIdAndStatutAndModePaiement(
+        String transporteurId,
+        Commande.Statut statut,
+        Commande.ModePaiement modePaiement);
+List<Commande> findByTransporteurIdAndStatutAndModePaiementNot(
+        String transporteurId,
+        Commande.Statut statut,
+        Commande.ModePaiement modePaiement);
     List<Commande> findBySousZoneDepartInAndSousZoneArriveeIn(
         List<Commande.SousZone> sousZonesDepart,
         List<Commande.SousZone> sousZonesArrivee);

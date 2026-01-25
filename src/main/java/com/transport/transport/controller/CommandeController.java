@@ -1,5 +1,6 @@
 package com.transport.transport.controller;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -147,6 +148,21 @@ public ResponseEntity<Commande> assignerTransporteur(
 @GetMapping("/transporteur/{idTransporteur}")
 public List<Commande> getByTransporteur(@PathVariable String idTransporteur) {
     return commandeService.getCommandesByTransporteur(idTransporteur);
+}
+@GetMapping("/transporteur/{idTransporteur}/total-livree")
+public ResponseEntity<BigDecimal> getSommePrixLivreeByTransporteur(@PathVariable String idTransporteur) {
+    BigDecimal total = commandeService.getSommePrixCommandesLivreesByTransporteur(idTransporteur);
+    return ResponseEntity.ok(total);
+}
+@GetMapping("/transporteur/{idTransporteur}/total-livree-en-ligne")
+public ResponseEntity<BigDecimal> getSommePrixLivreeEnLigneByTransporteur(@PathVariable String idTransporteur) {
+    BigDecimal total = commandeService.getSommePrixCommandesLivreesEnLigneByTransporteur(idTransporteur);
+    return ResponseEntity.ok(total);
+}
+@GetMapping("/transporteur/{idTransporteur}/total-livree-hors-ligne")
+public ResponseEntity<BigDecimal> getSommePrixLivreeHorsLigneByTransporteur(@PathVariable String idTransporteur) {
+    BigDecimal total = commandeService.getSommePrixCommandesLivreesHorsLigneByTransporteur(idTransporteur);
+    return ResponseEntity.ok(total);
 }
 @PostMapping("/sous-zones")
 public ResponseEntity<List<Commande>> getCommandesBySousZones(@RequestBody SousZoneFilterRequest request) {
