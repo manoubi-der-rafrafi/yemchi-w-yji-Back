@@ -2,6 +2,7 @@ package com.transport.transport.controller;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -163,6 +164,12 @@ public ResponseEntity<BigDecimal> getSommePrixLivreeEnLigneByTransporteur(@PathV
 public ResponseEntity<BigDecimal> getSommePrixLivreeHorsLigneByTransporteur(@PathVariable String idTransporteur) {
     BigDecimal total = commandeService.getSommePrixCommandesLivreesHorsLigneByTransporteur(idTransporteur);
     return ResponseEntity.ok(total);
+}
+@GetMapping("/transporteur/{idTransporteur}/pourcentage-sous-zone")
+public ResponseEntity<Map<String, Float>> getPourcentageRevenuParSousZoneLivree(
+        @PathVariable String idTransporteur) {
+    return ResponseEntity.ok(
+            commandeService.getPourcentageRevenuParSousZoneLivreeByTransporteur(idTransporteur));
 }
 @PostMapping("/sous-zones")
 public ResponseEntity<List<Commande>> getCommandesBySousZones(@RequestBody SousZoneFilterRequest request) {

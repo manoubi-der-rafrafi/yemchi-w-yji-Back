@@ -1,8 +1,12 @@
 package com.transport.transport.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -288,6 +292,36 @@ public BigDecimal getSommePrixCommandesLivreesHorsLigneByTransporteur(String idT
         }
     }
     return total;
+}
+public Map<String, Float> getPourcentageRevenuParSousZoneLivreeByTransporteur(String idTransporteur) {
+    List<Commande> commandes = commandeRepository.findByTransporteurIdAndStatut(
+            idTransporteur, Commande.Statut.livree);
+    Map<Commande.SousZone, BigDecimal> totalParSousZone = new EnumMap<>(Commande.SousZone.class);
+    BigDecimal total = BigDecimal.ZERO;
+
+    for (Commande commande : commandes) {
+        if (commande.getPrix() == null) {
+            continue;
+        }
+        Commande.SousZone sousZone = commande.getSousZoneArrivee();
+        if (sousZone == null) {
+            continue;
+        }
+        totalParSousZone.merge(sousZone, commande.getPrix(), BigDecimal::add);
+        total = total.add(commande.getPrix());
+    }
+
+    Map<String, Float> resultats = new LinkedHashMap<>();
+    if (total.compareTo(BigDecimal.ZERO) == 0) {
+        return resultats;
+    }
+    for (Map.Entry<Commande.SousZone, BigDecimal> entry : totalParSousZone.entrySet()) {
+        BigDecimal pourcentage = entry.getValue()
+                .multiply(BigDecimal.valueOf(100))
+                .divide(total, 2, RoundingMode.HALF_UP);
+        resultats.put(entry.getKey().name(), pourcentage.floatValue());
+    }
+    return resultats;
 }
 public List<Commande> getCommandesBySousZones(
         List<Commande.SousZone> sousZonesDepart,
