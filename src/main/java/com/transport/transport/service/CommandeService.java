@@ -260,6 +260,10 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
 public List<Commande> getCommandesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur);
 }
+public List<Commande> getCommandesLivreesByTransporteur(String idTransporteur) {
+    return commandeRepository.findByTransporteurIdAndStatutOrderByDateDemandeDesc(
+            idTransporteur, Commande.Statut.livree);
+}
 public BigDecimal getSommePrixCommandesLivreesByTransporteur(String idTransporteur) {
     List<Commande> commandes = commandeRepository.findByTransporteurIdAndStatut(
             idTransporteur, Commande.Statut.livree);
@@ -301,6 +305,20 @@ public List<Commande> getCommandesHorsLigneByTransporteur(String idTransporteur)
     return commandeRepository.findByTransporteurIdAndModePaiementNotOrderByDateDemandeDesc(
             idTransporteur, Commande.ModePaiement.EN_LIGNE);
 }
+public List<Commande> getCommandesEnLigneByTransporteur(String idTransporteur, Commande.Statut statut) {
+    if (statut == null) {
+        return getCommandesEnLigneByTransporteur(idTransporteur);
+    }
+    return commandeRepository.findByTransporteurIdAndModePaiementAndStatutOrderByDateDemandeDesc(
+            idTransporteur, Commande.ModePaiement.EN_LIGNE, statut);
+}
+public List<Commande> getCommandesHorsLigneByTransporteur(String idTransporteur, Commande.Statut statut) {
+    if (statut == null) {
+        return getCommandesHorsLigneByTransporteur(idTransporteur);
+    }
+    return commandeRepository.findByTransporteurIdAndModePaiementNotAndStatutOrderByDateDemandeDesc(
+            idTransporteur, Commande.ModePaiement.EN_LIGNE, statut);
+}
 public List<Commande> getCommandesEnLigneByTransporteurAndSousZone(
         String idTransporteur,
         Commande.SousZone sousZone) {
@@ -316,6 +334,34 @@ public List<Commande> getCommandesHorsLigneByTransporteurAndSousZone(
     return commandeRepository.findByTransporteurIdAndModePaiementNotAndSousZone(
             idTransporteur,
             Commande.ModePaiement.EN_LIGNE,
+            sousZone,
+            Sort.by(Sort.Direction.DESC, "dateDemande"));
+}
+public List<Commande> getCommandesEnLigneByTransporteurAndSousZone(
+        String idTransporteur,
+        Commande.SousZone sousZone,
+        Commande.Statut statut) {
+    if (statut == null) {
+        return getCommandesEnLigneByTransporteurAndSousZone(idTransporteur, sousZone);
+    }
+    return commandeRepository.findByTransporteurIdAndModePaiementAndStatutAndSousZone(
+            idTransporteur,
+            Commande.ModePaiement.EN_LIGNE,
+            statut,
+            sousZone,
+            Sort.by(Sort.Direction.DESC, "dateDemande"));
+}
+public List<Commande> getCommandesHorsLigneByTransporteurAndSousZone(
+        String idTransporteur,
+        Commande.SousZone sousZone,
+        Commande.Statut statut) {
+    if (statut == null) {
+        return getCommandesHorsLigneByTransporteurAndSousZone(idTransporteur, sousZone);
+    }
+    return commandeRepository.findByTransporteurIdAndModePaiementNotAndStatutAndSousZone(
+            idTransporteur,
+            Commande.ModePaiement.EN_LIGNE,
+            statut,
             sousZone,
             Sort.by(Sort.Direction.DESC, "dateDemande"));
 }

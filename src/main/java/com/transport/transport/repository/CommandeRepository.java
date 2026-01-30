@@ -24,6 +24,9 @@ public interface CommandeRepository extends MongoRepository<Commande, String> {
 List<Commande> findByStatutAndZonePrincipale(Commande.Statut statut, Commande.Zone zone, org.springframework.data.domain.Sort sort);
 List<Commande> findByTransporteurIdOrderByDateDemandeDesc(String transporteurId);
 List<Commande> findByTransporteurIdAndStatut(String transporteurId, Commande.Statut statut);
+List<Commande> findByTransporteurIdAndStatutOrderByDateDemandeDesc(
+        String transporteurId,
+        Commande.Statut statut);
 List<Commande> findByTransporteurIdAndStatutAndModePaiement(
         String transporteurId,
         Commande.Statut statut,
@@ -38,6 +41,14 @@ List<Commande> findByTransporteurIdAndModePaiementOrderByDateDemandeDesc(
 List<Commande> findByTransporteurIdAndModePaiementNotOrderByDateDemandeDesc(
         String transporteurId,
         Commande.ModePaiement modePaiement);
+List<Commande> findByTransporteurIdAndModePaiementAndStatutOrderByDateDemandeDesc(
+        String transporteurId,
+        Commande.ModePaiement modePaiement,
+        Commande.Statut statut);
+List<Commande> findByTransporteurIdAndModePaiementNotAndStatutOrderByDateDemandeDesc(
+        String transporteurId,
+        Commande.ModePaiement modePaiement,
+        Commande.Statut statut);
 @org.springframework.data.mongodb.repository.Query(
     value = "{ 'transporteurId': ?0, 'modePaiement': ?1, '$or': [ { 'sousZoneDepart': ?2 }, { 'sousZoneArrivee': ?2 } ] }"
 )
@@ -52,6 +63,24 @@ List<Commande> findByTransporteurIdAndModePaiementAndSousZone(
 List<Commande> findByTransporteurIdAndModePaiementNotAndSousZone(
         String transporteurId,
         Commande.ModePaiement modePaiement,
+        Commande.SousZone sousZone,
+        Sort sort);
+@org.springframework.data.mongodb.repository.Query(
+    value = "{ 'transporteurId': ?0, 'modePaiement': ?1, 'statut': ?2, '$or': [ { 'sousZoneDepart': ?3 }, { 'sousZoneArrivee': ?3 } ] }"
+)
+List<Commande> findByTransporteurIdAndModePaiementAndStatutAndSousZone(
+        String transporteurId,
+        Commande.ModePaiement modePaiement,
+        Commande.Statut statut,
+        Commande.SousZone sousZone,
+        Sort sort);
+@org.springframework.data.mongodb.repository.Query(
+    value = "{ 'transporteurId': ?0, 'modePaiement': { '$ne': ?1 }, 'statut': ?2, '$or': [ { 'sousZoneDepart': ?3 }, { 'sousZoneArrivee': ?3 } ] }"
+)
+List<Commande> findByTransporteurIdAndModePaiementNotAndStatutAndSousZone(
+        String transporteurId,
+        Commande.ModePaiement modePaiement,
+        Commande.Statut statut,
         Commande.SousZone sousZone,
         Sort sort);
     List<Commande> findBySousZoneDepartInAndSousZoneArriveeIn(

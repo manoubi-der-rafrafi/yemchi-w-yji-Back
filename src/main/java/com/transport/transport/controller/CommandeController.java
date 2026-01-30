@@ -151,6 +151,10 @@ public ResponseEntity<Commande> assignerTransporteur(
 public List<Commande> getByTransporteur(@PathVariable String idTransporteur) {
     return commandeService.getCommandesByTransporteur(idTransporteur);
 }
+@GetMapping("/transporteur/{idTransporteur}/livrees")
+public List<Commande> getCommandesLivreesByTransporteur(@PathVariable String idTransporteur) {
+    return commandeService.getCommandesLivreesByTransporteur(idTransporteur);
+}
 @GetMapping("/transporteur/{idTransporteur}/total-livree")
 public ResponseEntity<BigDecimal> getSommePrixLivreeByTransporteur(@PathVariable String idTransporteur) {
     BigDecimal total = commandeService.getSommePrixCommandesLivreesByTransporteur(idTransporteur);
@@ -167,24 +171,30 @@ public ResponseEntity<BigDecimal> getSommePrixLivreeHorsLigneByTransporteur(@Pat
     return ResponseEntity.ok(total);
 }
 @GetMapping("/transporteur/{idTransporteur}/en-ligne")
-public List<Commande> getCommandesEnLigneByTransporteur(@PathVariable String idTransporteur) {
-    return commandeService.getCommandesEnLigneByTransporteur(idTransporteur);
+public List<Commande> getCommandesEnLigneByTransporteur(
+        @PathVariable String idTransporteur,
+        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut) {
+    return commandeService.getCommandesEnLigneByTransporteur(idTransporteur, statut);
 }
 @GetMapping("/transporteur/{idTransporteur}/hors-ligne")
-public List<Commande> getCommandesHorsLigneByTransporteur(@PathVariable String idTransporteur) {
-    return commandeService.getCommandesHorsLigneByTransporteur(idTransporteur);
+public List<Commande> getCommandesHorsLigneByTransporteur(
+        @PathVariable String idTransporteur,
+        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut) {
+    return commandeService.getCommandesHorsLigneByTransporteur(idTransporteur, statut);
 }
 @GetMapping("/transporteur/{idTransporteur}/sous-zone/{sousZone}/en-ligne")
 public List<Commande> getCommandesEnLigneByTransporteurAndSousZone(
         @PathVariable String idTransporteur,
-        @PathVariable Commande.SousZone sousZone) {
-    return commandeService.getCommandesEnLigneByTransporteurAndSousZone(idTransporteur, sousZone);
+        @PathVariable Commande.SousZone sousZone,
+        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut) {
+    return commandeService.getCommandesEnLigneByTransporteurAndSousZone(idTransporteur, sousZone, statut);
 }
 @GetMapping("/transporteur/{idTransporteur}/sous-zone/{sousZone}/hors-ligne")
 public List<Commande> getCommandesHorsLigneByTransporteurAndSousZone(
         @PathVariable String idTransporteur,
-        @PathVariable Commande.SousZone sousZone) {
-    return commandeService.getCommandesHorsLigneByTransporteurAndSousZone(idTransporteur, sousZone);
+        @PathVariable Commande.SousZone sousZone,
+        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut) {
+    return commandeService.getCommandesHorsLigneByTransporteurAndSousZone(idTransporteur, sousZone, statut);
 }
 @GetMapping("/transporteur/{idTransporteur}/pourcentage-sous-zone")
 public ResponseEntity<Map<String, Float>> getPourcentageRevenuParSousZoneLivree(
