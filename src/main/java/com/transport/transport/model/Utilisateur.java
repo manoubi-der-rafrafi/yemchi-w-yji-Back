@@ -158,9 +158,15 @@ public class Utilisateur {
 public enum Zone {
     GRAND_TUNIS,
     COTIER_NORD,
+    NORD_EST,
+    NORD_OUEST,
     CENTRE_EST,
+    CENTRE,
+    CENTRE_OUEST,
+    SAHEL,
     SFAX,
     SUD_EST,
+    SUD_OUEST,
     INTERIEUR
 }
 
@@ -169,29 +175,50 @@ public enum SousZone {
     // Grand Tunis
     TUNIS,
     TUNIS_CENTRE,
+    ARIANA,
     ARIANA_NORD,
+    BEN_AROUS,
     BEN_AROUS_SUD,
+    MANOUBA,
     MANOUBA_OUEST,
 
     // Côtier Nord
+    BIZERTE,
     BIZERTE_METRO,
+    NABEUL,
     NABEUL_HAMMAMET,
     KELIBIA_MENZEL_TEMIME,
+
+    // Nord Ouest
+    BEJA,
+    JENDOUBA,
+    KEF,
+    SILIANA,
 
     // Centre Est
     SOUSSE,
     MONASTIR,
     MAHDIA,
 
+    // Centre / Centre Ouest
+    ZAGHOUAN,
     // Sfax
     SFAX,
+    KAIROUAN,
+    KASSERINE,
+    SIDI_BOUZID,
 
     // Sud Est
     GABES,
+    MEDENINE,
+    TATAOUINE,
     DJERBA_ZARZIS,
 
     // Intérieur
-    KAIROUAN
+    // Sud Ouest
+    GAFSA,
+    TOZEUR,
+    KEBILI
 }
 
 }

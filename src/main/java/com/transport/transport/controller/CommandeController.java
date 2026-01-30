@@ -1,6 +1,7 @@
 package com.transport.transport.controller;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -177,9 +178,17 @@ public ResponseEntity<List<Commande>> getCommandesBySousZones(@RequestBody SousZ
         return ResponseEntity.badRequest().build();
     }
     try {
-        List<Commande> commandes = commandeService.getCommandesBySousZones(
+        List<Commande.SousZone> sousZonesDepart = resolveSousZones(
                 request.getSousZonesDepart(),
-                request.getSousZonesArrivee());
+                request.getZoneDepart(),
+                request.getZone());
+        List<Commande.SousZone> sousZonesArrivee = resolveSousZones(
+                request.getSousZonesArrivee(),
+                request.getZoneAriver(),
+                request.getZone());
+        List<Commande> commandes = commandeService.getCommandesBySousZones(
+                sousZonesDepart,
+                sousZonesArrivee);
         return ResponseEntity.ok(commandes);
     } catch (IllegalArgumentException e) {
         return ResponseEntity.badRequest().build();
@@ -192,9 +201,17 @@ public ResponseEntity<List<Commande>> getCommandesBySousZonesAndVehicule(
         return ResponseEntity.badRequest().build();
     }
     try {
-        List<Commande> commandes = commandeService.getCommandesBySousZonesAndVehicule(
+        List<Commande.SousZone> sousZonesDepart = resolveSousZones(
                 request.getSousZonesDepart(),
+                request.getZoneDepart(),
+                request.getZone());
+        List<Commande.SousZone> sousZonesArrivee = resolveSousZones(
                 request.getSousZonesArrivee(),
+                request.getZoneAriver(),
+                request.getZone());
+        List<Commande> commandes = commandeService.getCommandesBySousZonesAndVehicule(
+                sousZonesDepart,
+                sousZonesArrivee,
                 request.getVehicule());
         return ResponseEntity.ok(commandes);
     } catch (IllegalArgumentException e) {
@@ -222,9 +239,36 @@ public ResponseEntity<Commande> marquerReceptionScanne(@PathVariable String id) 
     }
 }
 
+private List<Commande.SousZone> resolveSousZones(
+        List<Commande.SousZone> direct,
+        Map<String, List<Commande.SousZone>> zonesMap,
+        String zoneKey) {
+    if (direct != null && !direct.isEmpty()) {
+        return direct;
+    }
+    if (zonesMap == null || zonesMap.isEmpty()) {
+        return direct;
+    }
+    if (zoneKey != null && zonesMap.containsKey(zoneKey)) {
+        return zonesMap.get(zoneKey);
+    }
+    List<Commande.SousZone> merged = new ArrayList<>();
+    for (List<Commande.SousZone> values : zonesMap.values()) {
+        if (values != null && !values.isEmpty()) {
+            merged.addAll(values);
+        }
+    }
+    return merged;
+}
+
 public static class SousZoneFilterRequest {
     private List<Commande.SousZone> sousZonesDepart;
     private List<Commande.SousZone> sousZonesArrivee;
+    // Alternative payload: maps per zone (e.g. GRAND_TUNIS -> [TUNIS, ARIANA, ...])
+    private Map<String, List<Commande.SousZone>> zoneDepart;
+    private Map<String, List<Commande.SousZone>> zoneAriver;
+    // Optional zone key to pick a single entry from the maps
+    private String zone;
 
     public List<Commande.SousZone> getSousZonesDepart() {
         return sousZonesDepart;
@@ -241,11 +285,40 @@ public static class SousZoneFilterRequest {
     public void setSousZonesArrivee(List<Commande.SousZone> sousZonesArrivee) {
         this.sousZonesArrivee = sousZonesArrivee;
     }
+
+    public Map<String, List<Commande.SousZone>> getZoneDepart() {
+        return zoneDepart;
+    }
+
+    public void setZoneDepart(Map<String, List<Commande.SousZone>> zoneDepart) {
+        this.zoneDepart = zoneDepart;
+    }
+
+    public Map<String, List<Commande.SousZone>> getZoneAriver() {
+        return zoneAriver;
+    }
+
+    public void setZoneAriver(Map<String, List<Commande.SousZone>> zoneAriver) {
+        this.zoneAriver = zoneAriver;
+    }
+
+    public String getZone() {
+        return zone;
+    }
+
+    public void setZone(String zone) {
+        this.zone = zone;
+    }
 }
 public static class SousZoneVehiculeFilterRequest {
     private List<Commande.SousZone> sousZonesDepart;
     private List<Commande.SousZone> sousZonesArrivee;
     private TypeVehicule vehicule;
+    // Alternative payload: maps per zone (e.g. GRAND_TUNIS -> [TUNIS, ARIANA, ...])
+    private Map<String, List<Commande.SousZone>> zoneDepart;
+    private Map<String, List<Commande.SousZone>> zoneAriver;
+    // Optional zone key to pick a single entry from the maps
+    private String zone;
 
     public List<Commande.SousZone> getSousZonesDepart() {
         return sousZonesDepart;
@@ -269,6 +342,30 @@ public static class SousZoneVehiculeFilterRequest {
 
     public void setVehicule(TypeVehicule vehicule) {
         this.vehicule = vehicule;
+    }
+
+    public Map<String, List<Commande.SousZone>> getZoneDepart() {
+        return zoneDepart;
+    }
+
+    public void setZoneDepart(Map<String, List<Commande.SousZone>> zoneDepart) {
+        this.zoneDepart = zoneDepart;
+    }
+
+    public Map<String, List<Commande.SousZone>> getZoneAriver() {
+        return zoneAriver;
+    }
+
+    public void setZoneAriver(Map<String, List<Commande.SousZone>> zoneAriver) {
+        this.zoneAriver = zoneAriver;
+    }
+
+    public String getZone() {
+        return zone;
+    }
+
+    public void setZone(String zone) {
+        this.zone = zone;
     }
 }
 
