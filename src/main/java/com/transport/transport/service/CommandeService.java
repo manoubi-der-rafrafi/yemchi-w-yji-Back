@@ -293,6 +293,32 @@ public BigDecimal getSommePrixCommandesLivreesHorsLigneByTransporteur(String idT
     }
     return total;
 }
+public List<Commande> getCommandesEnLigneByTransporteur(String idTransporteur) {
+    return commandeRepository.findByTransporteurIdAndModePaiementOrderByDateDemandeDesc(
+            idTransporteur, Commande.ModePaiement.EN_LIGNE);
+}
+public List<Commande> getCommandesHorsLigneByTransporteur(String idTransporteur) {
+    return commandeRepository.findByTransporteurIdAndModePaiementNotOrderByDateDemandeDesc(
+            idTransporteur, Commande.ModePaiement.EN_LIGNE);
+}
+public List<Commande> getCommandesEnLigneByTransporteurAndSousZone(
+        String idTransporteur,
+        Commande.SousZone sousZone) {
+    return commandeRepository.findByTransporteurIdAndModePaiementAndSousZone(
+            idTransporteur,
+            Commande.ModePaiement.EN_LIGNE,
+            sousZone,
+            Sort.by(Sort.Direction.DESC, "dateDemande"));
+}
+public List<Commande> getCommandesHorsLigneByTransporteurAndSousZone(
+        String idTransporteur,
+        Commande.SousZone sousZone) {
+    return commandeRepository.findByTransporteurIdAndModePaiementNotAndSousZone(
+            idTransporteur,
+            Commande.ModePaiement.EN_LIGNE,
+            sousZone,
+            Sort.by(Sort.Direction.DESC, "dateDemande"));
+}
 public Map<String, Float> getPourcentageRevenuParSousZoneLivreeByTransporteur(String idTransporteur) {
     List<Commande> commandes = commandeRepository.findByTransporteurIdAndStatut(
             idTransporteur, Commande.Statut.livree);

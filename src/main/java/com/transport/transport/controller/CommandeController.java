@@ -166,6 +166,26 @@ public ResponseEntity<BigDecimal> getSommePrixLivreeHorsLigneByTransporteur(@Pat
     BigDecimal total = commandeService.getSommePrixCommandesLivreesHorsLigneByTransporteur(idTransporteur);
     return ResponseEntity.ok(total);
 }
+@GetMapping("/transporteur/{idTransporteur}/en-ligne")
+public List<Commande> getCommandesEnLigneByTransporteur(@PathVariable String idTransporteur) {
+    return commandeService.getCommandesEnLigneByTransporteur(idTransporteur);
+}
+@GetMapping("/transporteur/{idTransporteur}/hors-ligne")
+public List<Commande> getCommandesHorsLigneByTransporteur(@PathVariable String idTransporteur) {
+    return commandeService.getCommandesHorsLigneByTransporteur(idTransporteur);
+}
+@GetMapping("/transporteur/{idTransporteur}/sous-zone/{sousZone}/en-ligne")
+public List<Commande> getCommandesEnLigneByTransporteurAndSousZone(
+        @PathVariable String idTransporteur,
+        @PathVariable Commande.SousZone sousZone) {
+    return commandeService.getCommandesEnLigneByTransporteurAndSousZone(idTransporteur, sousZone);
+}
+@GetMapping("/transporteur/{idTransporteur}/sous-zone/{sousZone}/hors-ligne")
+public List<Commande> getCommandesHorsLigneByTransporteurAndSousZone(
+        @PathVariable String idTransporteur,
+        @PathVariable Commande.SousZone sousZone) {
+    return commandeService.getCommandesHorsLigneByTransporteurAndSousZone(idTransporteur, sousZone);
+}
 @GetMapping("/transporteur/{idTransporteur}/pourcentage-sous-zone")
 public ResponseEntity<Map<String, Float>> getPourcentageRevenuParSousZoneLivree(
         @PathVariable String idTransporteur) {

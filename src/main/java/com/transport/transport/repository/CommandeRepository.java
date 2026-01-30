@@ -3,6 +3,7 @@ package com.transport.transport.repository;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
@@ -31,6 +32,28 @@ List<Commande> findByTransporteurIdAndStatutAndModePaiementNot(
         String transporteurId,
         Commande.Statut statut,
         Commande.ModePaiement modePaiement);
+List<Commande> findByTransporteurIdAndModePaiementOrderByDateDemandeDesc(
+        String transporteurId,
+        Commande.ModePaiement modePaiement);
+List<Commande> findByTransporteurIdAndModePaiementNotOrderByDateDemandeDesc(
+        String transporteurId,
+        Commande.ModePaiement modePaiement);
+@org.springframework.data.mongodb.repository.Query(
+    value = "{ 'transporteurId': ?0, 'modePaiement': ?1, '$or': [ { 'sousZoneDepart': ?2 }, { 'sousZoneArrivee': ?2 } ] }"
+)
+List<Commande> findByTransporteurIdAndModePaiementAndSousZone(
+        String transporteurId,
+        Commande.ModePaiement modePaiement,
+        Commande.SousZone sousZone,
+        Sort sort);
+@org.springframework.data.mongodb.repository.Query(
+    value = "{ 'transporteurId': ?0, 'modePaiement': { '$ne': ?1 }, '$or': [ { 'sousZoneDepart': ?2 }, { 'sousZoneArrivee': ?2 } ] }"
+)
+List<Commande> findByTransporteurIdAndModePaiementNotAndSousZone(
+        String transporteurId,
+        Commande.ModePaiement modePaiement,
+        Commande.SousZone sousZone,
+        Sort sort);
     List<Commande> findBySousZoneDepartInAndSousZoneArriveeIn(
         List<Commande.SousZone> sousZonesDepart,
         List<Commande.SousZone> sousZonesArrivee);
