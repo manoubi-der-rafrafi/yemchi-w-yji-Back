@@ -20,7 +20,7 @@ public class FactureService {
     }
 
     public List<Facture> listByLivreurId(String livreurId) {
-        return factureRepository.findByIdLivreur(livreurId);
+        return factureRepository.findByIdLivreurAndConfirmerNotFalse(livreurId);
     }
 
     public BigDecimal sumMontantEntrepriseVerseLivreurByLivreurId(String livreurId) {
