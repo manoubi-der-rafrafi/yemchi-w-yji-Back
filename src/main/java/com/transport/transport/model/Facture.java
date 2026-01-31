@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 
@@ -18,6 +19,7 @@ public class Facture {
     private String image;
 
     @JsonAlias({ "id_livreur", "idLivreur" })
+    @Field("id_livreur")
     private String idLivreur;
 
     private FactureType type;
