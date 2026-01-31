@@ -22,6 +22,8 @@ public class Facture {
     @Field("id_livreur")
     private String idLivreur;
 
+    private Boolean confirmer = false;
+
     private FactureType type;
 
     public enum FactureType {
@@ -43,6 +45,9 @@ public class Facture {
 
     public String getIdLivreur() { return idLivreur; }
     public void setIdLivreur(String idLivreur) { this.idLivreur = idLivreur; }
+
+    public Boolean getConfirmer() { return confirmer; }
+    public void setConfirmer(Boolean confirmer) { this.confirmer = confirmer; }
 
     public FactureType getType() { return type; }
     public void setType(FactureType type) { this.type = type; }
