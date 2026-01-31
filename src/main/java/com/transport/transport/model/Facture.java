@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.mapping.FieldType;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 
@@ -14,6 +15,7 @@ public class Facture {
     @Id
     private String id;
 
+    @Field(targetType = FieldType.DECIMAL128)
     private BigDecimal montant;
     private String dateTimle;
     private String image;
