@@ -45,7 +45,7 @@ public class FactureController {
             @RequestParam("dateTimle") String dateTimle,
             @RequestParam("idLivreur") String idLivreur,
             @RequestParam("type") Facture.FactureType type,
-            @RequestParam(value = "confirmer", required = false) Boolean confirmer) {
+            @RequestParam(value = "confirmer", required = false) Facture.ConfirmationStatut confirmer) {
         try {
             if (image == null || image.isEmpty()) {
                 return ResponseEntity.badRequest()
@@ -68,7 +68,7 @@ public class FactureController {
             facture.setDateTimle(dateTimle);
             facture.setIdLivreur(idLivreur);
             facture.setType(type);
-            facture.setConfirmer(confirmer != null ? confirmer : false);
+            facture.setConfirmer(confirmer != null ? confirmer : Facture.ConfirmationStatut.NON_TRAITER);
             facture.setImage(url);
 
             return ResponseEntity.ok(factureService.createFacture(facture));

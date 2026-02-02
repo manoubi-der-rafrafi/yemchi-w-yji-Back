@@ -8,6 +8,8 @@ import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.data.mongodb.core.mapping.FieldType;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
 
 @Document(collection = "facture")
 public class Facture {
@@ -24,13 +26,54 @@ public class Facture {
     @Field("id_livreur")
     private String idLivreur;
 
-    private Boolean confirmer = false;
+    private ConfirmationStatut confirmer = ConfirmationStatut.NON_TRAITER;
 
     private FactureType type;
 
     public enum FactureType {
         ENTREPRISE_VERSE_LIVREUR,
         LIVREUR_VERSE_ENTREPRISE
+    }
+
+    public enum ConfirmationStatut {
+        NON_TRAITER,
+        ACCEPTER,
+        REFUSER;
+
+        @JsonCreator
+        public static ConfirmationStatut fromString(String value) {
+            if (value == null) {
+                return null;
+            }
+            String normalized = value.trim().toLowerCase();
+            switch (normalized) {
+                case "non_traiter":
+                case "non-traiter":
+                case "nontraiter":
+                    return NON_TRAITER;
+                case "accepter":
+                case "acceter":
+                    return ACCEPTER;
+                case "refuser":
+                    return REFUSER;
+                default:
+                    return ConfirmationStatut.valueOf(value.toUpperCase());
+            }
+        }
+
+        @JsonValue
+        public String toJson() {
+            switch (this) {
+                case NON_TRAITER:
+                    return "non_traiter";
+                case ACCEPTER:
+                    return "accepter";
+                case REFUSER:
+                    return "refuser";
+                default:
+                    return name().toLowerCase();
+            }
+        }
     }
 
     public String getId() { return id; }
@@ -48,8 +91,8 @@ public class Facture {
     public String getIdLivreur() { return idLivreur; }
     public void setIdLivreur(String idLivreur) { this.idLivreur = idLivreur; }
 
-    public Boolean getConfirmer() { return confirmer; }
-    public void setConfirmer(Boolean confirmer) { this.confirmer = confirmer; }
+    public ConfirmationStatut getConfirmer() { return confirmer; }
+    public void setConfirmer(ConfirmationStatut confirmer) { this.confirmer = confirmer; }
 
     public FactureType getType() { return type; }
     public void setType(FactureType type) { this.type = type; }
