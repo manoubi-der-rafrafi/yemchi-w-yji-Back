@@ -103,7 +103,11 @@ public class Commande {
         confirmer,
         envoyee,
         accepter,
-        en_route
+        en_route,
+        appelle_client_1,
+        appelle_client_2,
+        non_repondre_client_1,
+        non_repondre_client_2
     }
 
     /**
