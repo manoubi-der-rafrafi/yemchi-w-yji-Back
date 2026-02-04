@@ -10,13 +10,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanWrapper;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Commande.Statut;
@@ -253,7 +253,7 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
         }
         commande.setTransporteurId(idTransporteur);
         commande.setMajLe(LocalDateTime.now());
-        commande.setStatut(Statut.en_route);
+        commande.setStatut(Statut.appelle_client_1);
         return commandeRepository.save(commande);
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
