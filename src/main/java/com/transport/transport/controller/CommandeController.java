@@ -259,6 +259,54 @@ public ResponseEntity<Commande> marquerDepartScanne(@PathVariable String id) {
     }
 }
 
+@PutMapping("/{id}/appel-client-1")
+public ResponseEntity<Commande> marquerAppelClient1(@PathVariable String id) {
+    try {
+        Commande commande = commandeService.marquerAppelClient1(id);
+        return ResponseEntity.ok(commande);
+    } catch (IllegalStateException e) {
+        return ResponseEntity.badRequest().build();
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.notFound().build();
+    }
+}
+
+@PutMapping("/{id}/non-repondre-client-1")
+public ResponseEntity<Commande> marquerNonReponseClient1(@PathVariable String id) {
+    try {
+        Commande commande = commandeService.marquerNonReponseClient1(id);
+        return ResponseEntity.ok(commande);
+    } catch (IllegalStateException e) {
+        return ResponseEntity.badRequest().build();
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.notFound().build();
+    }
+}
+
+@PutMapping("/{id}/appel-client-2")
+public ResponseEntity<Commande> marquerAppelClient2(@PathVariable String id) {
+    try {
+        Commande commande = commandeService.marquerAppelClient2(id);
+        return ResponseEntity.ok(commande);
+    } catch (IllegalStateException e) {
+        return ResponseEntity.badRequest().build();
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.notFound().build();
+    }
+}
+
+@PutMapping("/{id}/non-repondre-client-2")
+public ResponseEntity<Commande> marquerNonReponseClient2(@PathVariable String id) {
+    try {
+        Commande commande = commandeService.marquerNonReponseClient2(id);
+        return ResponseEntity.ok(commande);
+    } catch (IllegalStateException e) {
+        return ResponseEntity.badRequest().build();
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.notFound().build();
+    }
+}
+
 @PutMapping("/{id}/scan-reception")
 public ResponseEntity<Commande> marquerReceptionScanne(@PathVariable String id) {
     try {

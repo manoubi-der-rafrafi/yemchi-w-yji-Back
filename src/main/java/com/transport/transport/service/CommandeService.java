@@ -425,6 +425,50 @@ public Commande marquerDepartScanne(String id) {
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
+public Commande marquerAppelClient1(String id) {
+    return commandeRepository.findById(id).map(commande -> {
+        if (commande.getStatut() != Statut.appelle_client_1) {
+            throw new IllegalStateException("Statut invalide pour marquer l'appel client 1");
+        }
+        commande.setStatut(Statut.appelle_client_2);
+        commande.setMajLe(LocalDateTime.now());
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
+public Commande marquerNonReponseClient1(String id) {
+    return commandeRepository.findById(id).map(commande -> {
+        if (commande.getStatut() != Statut.appelle_client_1) {
+            throw new IllegalStateException("Statut invalide pour marquer la non reponse client 1");
+        }
+        commande.setStatut(Statut.non_repondre_client_1);
+        commande.setMajLe(LocalDateTime.now());
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
+public Commande marquerAppelClient2(String id) {
+    return commandeRepository.findById(id).map(commande -> {
+        if (commande.getStatut() != Statut.appelle_client_2) {
+            throw new IllegalStateException("Statut invalide pour marquer l'appel client 2");
+        }
+        commande.setStatut(Statut.en_route);
+        commande.setMajLe(LocalDateTime.now());
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
+public Commande marquerNonReponseClient2(String id) {
+    return commandeRepository.findById(id).map(commande -> {
+        if (commande.getStatut() != Statut.appelle_client_2) {
+            throw new IllegalStateException("Statut invalide pour marquer la non reponse client 2");
+        }
+        commande.setStatut(Statut.non_repondre_client_2);
+        commande.setMajLe(LocalDateTime.now());
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
 public Commande marquerReceptionScanne(String id) {
     return commandeRepository.findById(id).map(commande -> {
         commande.marquerReceptionScanne();
