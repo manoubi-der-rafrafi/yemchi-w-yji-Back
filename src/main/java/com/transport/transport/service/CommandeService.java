@@ -253,7 +253,7 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
         }
         commande.setTransporteurId(idTransporteur);
         commande.setMajLe(LocalDateTime.now());
-        commande.setStatut(Statut.appelle_client_1);
+        commande.setStatut(Statut.en_appelle);
         return commandeRepository.save(commande);
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
@@ -424,6 +424,17 @@ public List<Commande> getCommandesBySousZonesAndVehicule(
 public Commande marquerDepartScanne(String id) {
     return commandeRepository.findById(id).map(commande -> {
         commande.marquerDepartScanne();
+        commande.setMajLe(LocalDateTime.now());
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
+public Commande demarrerAppelClient1(String id) {
+    return commandeRepository.findById(id).map(commande -> {
+        if (commande.getStatut() != Statut.en_appelle) {
+            throw new IllegalStateException("Statut invalide pour demarrer l'appel client 1");
+        }
+        commande.setStatut(Statut.appelle_client_1);
         commande.setMajLe(LocalDateTime.now());
         return commandeRepository.save(commande);
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));

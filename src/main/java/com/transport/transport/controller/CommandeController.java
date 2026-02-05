@@ -275,6 +275,18 @@ public ResponseEntity<Commande> marquerAppelClient1(@PathVariable String id) {
     }
 }
 
+@PutMapping("/{id}/debut-appel-client-1")
+public ResponseEntity<Commande> demarrerAppelClient1(@PathVariable String id) {
+    try {
+        Commande commande = commandeService.demarrerAppelClient1(id);
+        return ResponseEntity.ok(commande);
+    } catch (IllegalStateException e) {
+        return ResponseEntity.badRequest().build();
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.notFound().build();
+    }
+}
+
 @PutMapping("/{id}/non-repondre-client-1")
 public ResponseEntity<Commande> marquerNonReponseClient1(@PathVariable String id) {
     try {
