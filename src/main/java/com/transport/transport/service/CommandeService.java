@@ -260,6 +260,10 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
 public List<Commande> getCommandesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur);
 }
+public List<Commande> getCommandesNonLivreesByTransporteur(String idTransporteur) {
+    return commandeRepository.findByTransporteurIdAndStatutNotOrderByDateDemandeDesc(
+            idTransporteur, Commande.Statut.livree);
+}
 public List<Commande> getCommandesLivreesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdAndStatutOrderByDateDemandeDesc(
             idTransporteur, Commande.Statut.livree);

@@ -27,6 +27,12 @@ List<Commande> findByTransporteurIdAndStatut(String transporteurId, Commande.Sta
 List<Commande> findByTransporteurIdAndStatutOrderByDateDemandeDesc(
         String transporteurId,
         Commande.Statut statut);
+@org.springframework.data.mongodb.repository.Query(
+    value = "{ 'transporteurId': ?0, 'statut': { '$ne': ?1 } }"
+)
+List<Commande> findByTransporteurIdAndStatutNotOrderByDateDemandeDesc(
+        String transporteurId,
+        Commande.Statut statut);
 List<Commande> findByTransporteurIdAndStatutAndModePaiement(
         String transporteurId,
         Commande.Statut statut,

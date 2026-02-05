@@ -151,6 +151,10 @@ public ResponseEntity<Commande> assignerTransporteur(
 public List<Commande> getByTransporteur(@PathVariable String idTransporteur) {
     return commandeService.getCommandesByTransporteur(idTransporteur);
 }
+@GetMapping("/transporteur/{idTransporteur}/non-livrees")
+public List<Commande> getCommandesNonLivreesByTransporteur(@PathVariable String idTransporteur) {
+    return commandeService.getCommandesNonLivreesByTransporteur(idTransporteur);
+}
 @GetMapping("/transporteur/{idTransporteur}/livrees")
 public List<Commande> getCommandesLivreesByTransporteur(@PathVariable String idTransporteur) {
     return commandeService.getCommandesLivreesByTransporteur(idTransporteur);
