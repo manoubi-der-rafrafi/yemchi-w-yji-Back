@@ -20,8 +20,11 @@ import org.springframework.stereotype.Service;
 
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Commande.Statut;
+import com.transport.transport.model.Produit;
 import com.transport.transport.model.TypeVehicule;
+import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.CommandeRepository;
+import com.transport.transport.repository.ProduitRepository;
 import com.transport.transport.repository.UtilisateurRepository;
 
 @Service
@@ -31,10 +34,15 @@ public class CommandeService {
 
     @Autowired
     private final CommandeRepository commandeRepository;
+    private final ProduitRepository produitRepository;
     private final UtilisateurRepository utilisateurRepository;
 
-    public CommandeService(CommandeRepository commandeRepository, UtilisateurRepository utilisateurRepository) {
+    public CommandeService(
+            CommandeRepository commandeRepository,
+            ProduitRepository produitRepository,
+            UtilisateurRepository utilisateurRepository) {
         this.commandeRepository = commandeRepository;
+        this.produitRepository = produitRepository;
         this.utilisateurRepository = utilisateurRepository;
     }
 
@@ -209,6 +217,28 @@ public class CommandeService {
     public Optional<Commande> getCommandeEnCoursByClientId(String  idClient) {
         return commandeRepository.findByClientIdAndStatut(idClient, Commande.Statut.en_cours);
     }
+
+    public Map<Map<Commande, List<Produit>>, Utilisateur>
+            getCommandesProduitsTransporteurByClientId(String idClient) {
+        List<Commande> commandes = commandeRepository.findByClientIdAndStatutOrderByDateDemandeDesc(
+                idClient, Commande.Statut.en_route);
+        Map<Map<Commande, List<Produit>>, Utilisateur> resultats = new LinkedHashMap<>();
+        for (Commande commande : commandes) {
+            List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
+            Map<Commande, List<Produit>> commandeProduits = new LinkedHashMap<>();
+            commandeProduits.put(commande, produits);
+
+            Utilisateur transporteur = null;
+            String transporteurId = commande.getTransporteurId();
+            if (transporteurId != null) {
+                transporteur = utilisateurRepository.findById(transporteurId).orElse(null);
+            }
+
+            resultats.put(commandeProduits, transporteur);
+        }
+        return resultats;
+    }
+
     public Commande confirmerCommande(String  id) {
         return commandeRepository.findById(id).map(commande -> {
             commande.setStatut(Commande.Statut.confirmer);

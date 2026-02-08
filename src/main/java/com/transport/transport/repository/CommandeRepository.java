@@ -13,6 +13,7 @@ import com.transport.transport.model.TypeVehicule;
 @Repository
 public interface CommandeRepository extends MongoRepository<Commande, String> {
     Optional<Commande> findByClientIdAndStatut(String idClient, Commande.Statut statut);
+    List<Commande> findByClientIdAndStatutOrderByDateDemandeDesc(String clientId, Commande.Statut statut);
     List<Commande> findByClientIdOrderByDateDemandeDesc(String clientId);
     List<Commande> findByIdAmie(String idAmie);
     int countByIdAmie(String idAmie);
@@ -28,11 +29,11 @@ List<Commande> findByTransporteurIdAndStatutOrderByDateDemandeDesc(
         String transporteurId,
         Commande.Statut statut);
 @org.springframework.data.mongodb.repository.Query(
-    value = "{ 'transporteurId': ?0, 'statut': { '$ne': ?1 } }"
+    value = "{ 'transporteurId': ?0, 'statut': { '$nin': ?1 } }"
 )
-List<Commande> findByTransporteurIdAndStatutNotOrderByDateDemandeDesc(
+List<Commande> findByTransporteurIdAndStatutNotInOrderByDateDemandeDesc(
         String transporteurId,
-        Commande.Statut statut);
+        List<Commande.Statut> statuts);
 List<Commande> findByTransporteurIdAndStatutAndModePaiement(
         String transporteurId,
         Commande.Statut statut,
