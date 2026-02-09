@@ -40,6 +40,7 @@ import com.cloudinary.utils.ObjectUtils;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.transport.transport.dto.UserPosition;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
 import com.transport.transport.service.MailService;
@@ -600,6 +601,18 @@ public ResponseEntity<Utilisateur> updateZoneAriverDepart(
 ) {
   Utilisateur updated = utilisateurService.updateZonesDepartAriver(id, body.zoneDepart(), body.zoneAriver());
   return ResponseEntity.ok(updated);
+}
+
+public static record PositionsRequest(List<String> ids) {}
+
+// POST /api/utilisateur/positions
+@PostMapping("/positions")
+public ResponseEntity<?> getPositions(@RequestBody PositionsRequest body) {
+  if (body == null || body.ids() == null || body.ids().isEmpty()) {
+    return ResponseEntity.badRequest().body("Liste d'identifiants requise");
+  }
+  List<UserPosition> positions = utilisateurService.getPositionsByUserIds(body.ids());
+  return ResponseEntity.ok(positions);
 }
 
 

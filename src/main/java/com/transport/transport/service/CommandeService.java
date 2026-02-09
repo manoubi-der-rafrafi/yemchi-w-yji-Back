@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import com.transport.transport.dto.TransporteurInfo;
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Commande.Statut;
 import com.transport.transport.model.Produit;
@@ -218,23 +219,33 @@ public class CommandeService {
         return commandeRepository.findByClientIdAndStatut(idClient, Commande.Statut.en_cours);
     }
 
-    public Map<Map<Commande, List<Produit>>, Utilisateur>
+    public Map<Map<Commande, List<Produit>>, TransporteurInfo>
             getCommandesProduitsTransporteurByClientId(String idClient) {
         List<Commande> commandes = commandeRepository.findByClientIdAndStatutOrderByDateDemandeDesc(
                 idClient, Commande.Statut.en_route);
-        Map<Map<Commande, List<Produit>>, Utilisateur> resultats = new LinkedHashMap<>();
+        Map<Map<Commande, List<Produit>>, TransporteurInfo> resultats = new LinkedHashMap<>();
         for (Commande commande : commandes) {
             List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
             Map<Commande, List<Produit>> commandeProduits = new LinkedHashMap<>();
             commandeProduits.put(commande, produits);
 
-            Utilisateur transporteur = null;
+            TransporteurInfo transporteurInfo = null;
             String transporteurId = commande.getTransporteurId();
             if (transporteurId != null) {
-                transporteur = utilisateurRepository.findById(transporteurId).orElse(null);
+                Utilisateur transporteur = utilisateurRepository.findById(transporteurId).orElse(null);
+                if (transporteur != null) {
+                    transporteurInfo = new TransporteurInfo(
+                            transporteur.getId(),
+                            transporteur.getNom(),
+                            transporteur.getPrenom(),
+                            transporteur.getTelephone(),
+                            transporteur.getImage(),
+                            transporteur.getLatitude(),
+                            transporteur.getLongitude());
+                }
             }
 
-            resultats.put(commandeProduits, transporteur);
+            resultats.put(commandeProduits, transporteurInfo);
         }
         return resultats;
     }
@@ -291,8 +302,9 @@ public List<Commande> getCommandesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur);
 }
 public List<Commande> getCommandesNonLivreesByTransporteur(String idTransporteur) {
-    return commandeRepository.findByTransporteurIdAndStatutNotOrderByDateDemandeDesc(
-            idTransporteur, Commande.Statut.livree);
+    return commandeRepository.findByTransporteurIdAndStatutNotInOrderByDateDemandeDesc(
+            idTransporteur,
+            List.of(Commande.Statut.livree, Commande.Statut.ANNULEE, Commande.Statut.annulee));
 }
 public List<Commande> getCommandesLivreesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdAndStatutOrderByDateDemandeDesc(

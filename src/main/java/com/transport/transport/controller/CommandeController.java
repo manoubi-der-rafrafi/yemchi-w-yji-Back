@@ -18,10 +18,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.transport.transport.dto.TransporteurInfo;
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Produit;
 import com.transport.transport.model.TypeVehicule;
-import com.transport.transport.model.Utilisateur;
 import com.transport.transport.service.CommandeService;
 
 @RestController
@@ -85,7 +85,7 @@ public class CommandeController {
                 .orElse(ResponseEntity.notFound().build());
     }
     @GetMapping("/client/{idClient}/en-route/produits-transporteur")
-    public ResponseEntity<Map<Map<Commande, List<Produit>>, Utilisateur>>
+    public ResponseEntity<Map<Map<Commande, List<Produit>>, TransporteurInfo>>
             getCommandesProduitsTransporteurByClient(@PathVariable String idClient) {
         return ResponseEntity.ok(commandeService.getCommandesProduitsTransporteurByClientId(idClient));
     }

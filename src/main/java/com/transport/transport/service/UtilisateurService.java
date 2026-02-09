@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.transport.transport.dto.UserPosition;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
 
@@ -214,4 +216,14 @@ public class UtilisateurService {
     u.setMotDePasse(null);
     return u;
   }
+
+  public List<UserPosition> getPositionsByUserIds(List<String> ids) {
+    if (ids == null || ids.isEmpty()) return List.of();
+
+    return repo.findAllById(ids)
+        .stream()
+        .map(u -> new UserPosition(u.getId(), u.getLatitude(), u.getLongitude()))
+        .collect(Collectors.toList());
+  }
+
 }
