@@ -509,8 +509,9 @@ public List<String> trouverTransporteursMinCommandes(String commandeId) {
         }
     }
 
+    final long minFinal = min;
     List<String> result = counts.entrySet().stream()
-            .filter(e -> e.getValue() == min)
+            .filter(e -> e.getValue() == minFinal)
             .map(Map.Entry::getKey)
             .collect(Collectors.toList());
 
