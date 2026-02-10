@@ -3,12 +3,14 @@ package com.transport.transport.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,9 +91,9 @@ public class CommandeService {
                 commande.setDateDemande(details.getDateDemande());
             }
             if (details.getStatut() != null) {
-                if(details.getStatut() == Statut.confirmer)
-                {
-                    commande.setDateDemande(LocalDateTime.now());
+                if (details.getStatut() == Statut.confirmer
+                        && commande.getStatut() != Statut.confirmer) {
+                    commande.setDateConfirmer(LocalDateTime.now());
                 }
                 commande.setStatut(details.getStatut());
             }
@@ -253,7 +255,7 @@ public class CommandeService {
     public Commande confirmerCommande(String  id) {
         return commandeRepository.findById(id).map(commande -> {
             commande.setStatut(Commande.Statut.confirmer);
-            commande.setDateDemande(LocalDateTime.now()); // �z? date actuelle
+            commande.setDateConfirmer(LocalDateTime.now()); // date de confirmation
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
@@ -449,7 +451,7 @@ public List<Commande> getCommandesBySousZones(
     }
     return commandeRepository.findBySousZoneDepartInAndSousZoneArriveeIn(sousZonesDepart, sousZonesArrivee);
 }
-public List<Commande> getCommandesBySousZonesAndVehicule(
+    public List<Commande> getCommandesBySousZonesAndVehicule(
         List<Commande.SousZone> sousZonesDepart,
         List<Commande.SousZone> sousZonesArrivee,
         TypeVehicule vehicule) {
@@ -461,6 +463,86 @@ public List<Commande> getCommandesBySousZonesAndVehicule(
     }
     return commandeRepository.findBySousZoneDepartInAndSousZoneArriveeInAndVehiculeAndStatut(
             sousZonesDepart, sousZonesArrivee, vehicule, Commande.Statut.confirmer);
+}
+
+public List<String> trouverTransporteursMinCommandes(String commandeId) {
+    Commande commande = commandeRepository.findById(commandeId)
+            .orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+
+    if (commande.getDateConfirmer() == null
+            || LocalDateTime.now().isBefore(commande.getDateConfirmer().plusMinutes(3))) {
+        return null;
+    }
+
+    if (commande.getSousZoneDepart() == null || commande.getSousZoneArrivee() == null) {
+        return null;
+    }
+
+    List<Utilisateur> transporteurs = utilisateurRepository.findAll()
+            .stream()
+            .filter(u -> u.getRole() == Utilisateur.Role.transporteur)
+            .filter(u -> u.getStatut() == Utilisateur.Statut.actif)
+            .filter(u -> transporteurCouvreSousZones(
+                    u, commande.getSousZoneDepart(), commande.getSousZoneArrivee()))
+            .collect(Collectors.toList());
+
+    if (transporteurs.isEmpty()) {
+        return null;
+    }
+
+    List<Commande.Statut> statutsEnCours = Arrays.asList(
+            Commande.Statut.en_route,
+            Commande.Statut.appelle_client_1,
+            Commande.Statut.appelle_client_2,
+            Commande.Statut.non_repondre_client_1,
+            Commande.Statut.non_repondre_client_2
+    );
+
+    long min = Long.MAX_VALUE;
+    Map<String, Long> counts = new LinkedHashMap<>();
+    for (Utilisateur transporteur : transporteurs) {
+        long count = commandeRepository.countByTransporteurIdAndStatutIn(
+                transporteur.getId(), statutsEnCours);
+        counts.put(transporteur.getId(), count);
+        if (count < min) {
+            min = count;
+        }
+    }
+
+    List<String> result = counts.entrySet().stream()
+            .filter(e -> e.getValue() == min)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+
+    return result.isEmpty() ? null : result;
+}
+
+private boolean transporteurCouvreSousZones(
+        Utilisateur transporteur,
+        Commande.SousZone sousZoneDepart,
+        Commande.SousZone sousZoneArrivee) {
+    return mapContainsSousZone(transporteur.getZoneDepart(), sousZoneDepart)
+            && mapContainsSousZone(transporteur.getZoneAriver(), sousZoneArrivee);
+}
+
+private boolean mapContainsSousZone(
+        Map<String, List<String>> zonesMap,
+        Commande.SousZone sousZone) {
+    if (zonesMap == null || zonesMap.isEmpty() || sousZone == null) {
+        return false;
+    }
+    String target = sousZone.name();
+    for (List<String> zones : zonesMap.values()) {
+        if (zones == null || zones.isEmpty()) {
+            continue;
+        }
+        for (String z : zones) {
+            if (z != null && z.equalsIgnoreCase(target)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 public Commande marquerDepartScanne(String id) {
@@ -537,3 +619,4 @@ public Commande marquerReceptionScanne(String id) {
 
 
 }
+

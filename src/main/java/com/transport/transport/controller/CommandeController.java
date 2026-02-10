@@ -108,6 +108,15 @@ public class CommandeController {
             return ResponseEntity.notFound().build();
         }
     }
+    @GetMapping("/{id}/transporteurs-min-commandes")
+    public ResponseEntity<List<String>> getTransporteursMinCommandes(@PathVariable String id) {
+        try {
+            List<String> ids = commandeService.trouverTransporteursMinCommandes(id);
+            return ResponseEntity.ok(ids);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
     @GetMapping("/ami/{idAmie}")
     public List<Commande> getByIdAmie(@PathVariable String idAmie) {
         return commandeService.getByIdAmie(idAmie);

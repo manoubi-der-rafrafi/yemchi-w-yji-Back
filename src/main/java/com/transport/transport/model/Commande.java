@@ -30,6 +30,8 @@ public class Commande {
     /** Date de création/demande de commande (nécessite @EnableMongoAuditing) */
     @CreatedDate
     private LocalDateTime dateDemande;
+    /** Date et heure de confirmation de la commande */
+    private LocalDateTime dateConfirmer;
 
     private Statut statut;
     private BigDecimal prix;
@@ -206,6 +208,8 @@ public enum SousZone {
 
     public LocalDateTime getDateDemande() { return dateDemande; }
     public void setDateDemande(LocalDateTime dateDemande) { this.dateDemande = dateDemande; }
+    public LocalDateTime getDateConfirmer() { return dateConfirmer; }
+    public void setDateConfirmer(LocalDateTime dateConfirmer) { this.dateConfirmer = dateConfirmer; }
 
     public Statut getStatut() { return statut; }
     public void setStatut(Statut statut) { this.statut = statut; }
