@@ -221,15 +221,14 @@ public class CommandeService {
         return commandeRepository.findByClientIdAndStatut(idClient, Commande.Statut.en_cours);
     }
 
-    public Map<Map<Commande, List<Produit>>, TransporteurInfo>
+    public List<com.transport.transport.controller.CommandeController.CommandeProduitsTransporteurResponse>
             getCommandesProduitsTransporteurByClientId(String idClient) {
         List<Commande> commandes = commandeRepository.findByClientIdAndStatutOrderByDateDemandeDesc(
                 idClient, Commande.Statut.en_route);
-        Map<Map<Commande, List<Produit>>, TransporteurInfo> resultats = new LinkedHashMap<>();
+        List<com.transport.transport.controller.CommandeController.CommandeProduitsTransporteurResponse> resultats =
+                new java.util.ArrayList<>();
         for (Commande commande : commandes) {
             List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
-            Map<Commande, List<Produit>> commandeProduits = new LinkedHashMap<>();
-            commandeProduits.put(commande, produits);
 
             TransporteurInfo transporteurInfo = null;
             String transporteurId = commande.getTransporteurId();
@@ -247,7 +246,8 @@ public class CommandeService {
                 }
             }
 
-            resultats.put(commandeProduits, transporteurInfo);
+            resultats.add(new com.transport.transport.controller.CommandeController
+                    .CommandeProduitsTransporteurResponse(commande, produits, transporteurInfo));
         }
         return resultats;
     }

@@ -85,9 +85,48 @@ public class CommandeController {
                 .orElse(ResponseEntity.notFound().build());
     }
     @GetMapping("/client/{idClient}/en-route/produits-transporteur")
-    public ResponseEntity<Map<Map<Commande, List<Produit>>, TransporteurInfo>>
+    public ResponseEntity<List<CommandeProduitsTransporteurResponse>>
             getCommandesProduitsTransporteurByClient(@PathVariable String idClient) {
         return ResponseEntity.ok(commandeService.getCommandesProduitsTransporteurByClientId(idClient));
+    }
+
+    public static class CommandeProduitsTransporteurResponse {
+        private Commande commande;
+        private List<Produit> produits;
+        private TransporteurInfo transporteur;
+
+        public CommandeProduitsTransporteurResponse(
+                Commande commande,
+                List<Produit> produits,
+                TransporteurInfo transporteur) {
+            this.commande = commande;
+            this.produits = produits;
+            this.transporteur = transporteur;
+        }
+
+        public Commande getCommande() {
+            return commande;
+        }
+
+        public void setCommande(Commande commande) {
+            this.commande = commande;
+        }
+
+        public List<Produit> getProduits() {
+            return produits;
+        }
+
+        public void setProduits(List<Produit> produits) {
+            this.produits = produits;
+        }
+
+        public TransporteurInfo getTransporteur() {
+            return transporteur;
+        }
+
+        public void setTransporteur(TransporteurInfo transporteur) {
+            this.transporteur = transporteur;
+        }
     }
     // Historique simple d’un client
     @GetMapping("/client/{clientId}")

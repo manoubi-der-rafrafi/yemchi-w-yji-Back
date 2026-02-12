@@ -58,7 +58,7 @@ List<Commande> findByTransporteurIdAndModePaiementNotAndStatutOrderByDateDemande
         Commande.ModePaiement modePaiement,
         Commande.Statut statut);
 @org.springframework.data.mongodb.repository.Query(
-    value = "{ 'transporteurId': ?0, 'modePaiement': ?1, '$or': [ { 'sousZoneDepart': ?2 }, { 'sousZoneArrivee': ?2 } ] }"
+    value = "{ 'transporteurId': ?0, 'modePaiement': ?1, '$or': [ { 'sous_zone_depart': ?2 }, { 'sous_zone_arrivee': ?2 } ] }"
 )
 List<Commande> findByTransporteurIdAndModePaiementAndSousZone(
         String transporteurId,
@@ -66,7 +66,7 @@ List<Commande> findByTransporteurIdAndModePaiementAndSousZone(
         Commande.SousZone sousZone,
         Sort sort);
 @org.springframework.data.mongodb.repository.Query(
-    value = "{ 'transporteurId': ?0, 'modePaiement': { '$ne': ?1 }, '$or': [ { 'sousZoneDepart': ?2 }, { 'sousZoneArrivee': ?2 } ] }"
+    value = "{ 'transporteurId': ?0, 'modePaiement': { '$ne': ?1 }, '$or': [ { 'sous_zone_depart': ?2 }, { 'sous_zone_arrivee': ?2 } ] }"
 )
 List<Commande> findByTransporteurIdAndModePaiementNotAndSousZone(
         String transporteurId,
@@ -74,7 +74,7 @@ List<Commande> findByTransporteurIdAndModePaiementNotAndSousZone(
         Commande.SousZone sousZone,
         Sort sort);
 @org.springframework.data.mongodb.repository.Query(
-    value = "{ 'transporteurId': ?0, 'modePaiement': ?1, 'statut': ?2, '$or': [ { 'sousZoneDepart': ?3 }, { 'sousZoneArrivee': ?3 } ] }"
+    value = "{ 'transporteurId': ?0, 'modePaiement': ?1, 'statut': ?2, '$or': [ { 'sous_zone_depart': ?3 }, { 'sous_zone_arrivee': ?3 } ] }"
 )
 List<Commande> findByTransporteurIdAndModePaiementAndStatutAndSousZone(
         String transporteurId,
@@ -83,7 +83,7 @@ List<Commande> findByTransporteurIdAndModePaiementAndStatutAndSousZone(
         Commande.SousZone sousZone,
         Sort sort);
 @org.springframework.data.mongodb.repository.Query(
-    value = "{ 'transporteurId': ?0, 'modePaiement': { '$ne': ?1 }, 'statut': ?2, '$or': [ { 'sousZoneDepart': ?3 }, { 'sousZoneArrivee': ?3 } ] }"
+    value = "{ 'transporteurId': ?0, 'modePaiement': { '$ne': ?1 }, 'statut': ?2, '$or': [ { 'sous_zone_depart': ?3 }, { 'sous_zone_arrivee': ?3 } ] }"
 )
 List<Commande> findByTransporteurIdAndModePaiementNotAndStatutAndSousZone(
         String transporteurId,

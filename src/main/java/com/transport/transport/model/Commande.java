@@ -7,6 +7,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -69,10 +70,12 @@ public class Commande {
     private Double longitudeDestination;
     private Double distanceKm;
 
+    @Field("sous_zone_depart")
     @JsonAlias({ "sous_zone_depart", "sousZoneDepart" })
     @JsonProperty("sous_zone_depart")
     private SousZone sousZoneDepart;
 
+    @Field("sous_zone_arrivee")
     @JsonAlias({ "sous_zone_arrivee", "sousZoneArrivee" })
     @JsonProperty("sous_zone_arrivee")
     private SousZone sousZoneArrivee;
