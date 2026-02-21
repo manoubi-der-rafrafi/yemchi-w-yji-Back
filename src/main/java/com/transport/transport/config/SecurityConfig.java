@@ -143,6 +143,7 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
         "http://localhost:*",
         "http://127.0.0.1:*",
         "https://yemchi-w-yji-front.vercel.app",
+        "https://www.yemchi-w-yji.tn",
         "http://10.0.2.2:5173"
     ));
 
