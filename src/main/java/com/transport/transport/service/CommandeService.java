@@ -252,6 +252,24 @@ public class CommandeService {
         return resultats;
     }
 
+    public List<com.transport.transport.controller.CommandeController.CommandeProduitsResponse>
+            getCommandesEnRouteAvecProduitsByTransporteur(String idTransporteur) {
+        List<Commande> commandes =
+                commandeRepository.findByTransporteurIdAndStatutInAndQrCodeDepartScanneTrueOrderByDateDemandeDesc(
+                        idTransporteur,
+                        List.of(Commande.Statut.en_cours, Commande.Statut.en_route));
+        List<com.transport.transport.controller.CommandeController.CommandeProduitsResponse> resultats =
+                new java.util.ArrayList<>();
+
+        for (Commande commande : commandes) {
+            List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
+            resultats.add(new com.transport.transport.controller.CommandeController
+                    .CommandeProduitsResponse(commande, produits));
+        }
+
+        return resultats;
+    }
+
     public Commande confirmerCommande(String  id) {
         return commandeRepository.findById(id).map(commande -> {
             commande.setStatut(Commande.Statut.confirmer);

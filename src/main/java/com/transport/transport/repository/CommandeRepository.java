@@ -29,6 +29,9 @@ long countByTransporteurIdAndStatutIn(String transporteurId, List<Commande.Statu
 List<Commande> findByTransporteurIdAndStatutOrderByDateDemandeDesc(
         String transporteurId,
         Commande.Statut statut);
+List<Commande> findByTransporteurIdAndStatutInAndQrCodeDepartScanneTrueOrderByDateDemandeDesc(
+        String transporteurId,
+        List<Commande.Statut> statuts);
 @org.springframework.data.mongodb.repository.Query(
     value = "{ 'transporteurId': ?0, 'statut': { '$nin': ?1 } }"
 )

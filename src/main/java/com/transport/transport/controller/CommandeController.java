@@ -90,6 +90,39 @@ public class CommandeController {
         return ResponseEntity.ok(commandeService.getCommandesProduitsTransporteurByClientId(idClient));
     }
 
+    @GetMapping("/transporteur/{idTransporteur}/en-route/produits")
+    public ResponseEntity<List<CommandeProduitsResponse>> getCommandesEnRouteAvecProduitsByTransporteur(
+            @PathVariable String idTransporteur) {
+        return ResponseEntity.ok(
+                commandeService.getCommandesEnRouteAvecProduitsByTransporteur(idTransporteur));
+    }
+
+    public static class CommandeProduitsResponse {
+        private Commande commande;
+        private List<Produit> produits;
+
+        public CommandeProduitsResponse(Commande commande, List<Produit> produits) {
+            this.commande = commande;
+            this.produits = produits;
+        }
+
+        public Commande getCommande() {
+            return commande;
+        }
+
+        public void setCommande(Commande commande) {
+            this.commande = commande;
+        }
+
+        public List<Produit> getProduits() {
+            return produits;
+        }
+
+        public void setProduits(List<Produit> produits) {
+            this.produits = produits;
+        }
+    }
+
     public static class CommandeProduitsTransporteurResponse {
         private Commande commande;
         private List<Produit> produits;
