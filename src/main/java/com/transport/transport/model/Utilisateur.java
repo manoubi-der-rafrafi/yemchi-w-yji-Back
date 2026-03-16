@@ -47,6 +47,7 @@ public class Utilisateur {
     private TypeVehicule typeVehicule;
 
     private Statut statut = Statut.actif;
+    private EtatIncident etatIncident = EtatIncident.RIEN;
 
     @CreatedDate
     private LocalDateTime dateCreation;
@@ -62,6 +63,7 @@ public class Utilisateur {
     private Map<String, List<String>> zoneAriver;
     public enum Role { client, transporteur, admin }
     public enum Statut { actif, inactif, banni }
+    public enum EtatIncident { RIEN, PANNE, ACCIDENT }
 
 
     public Utilisateur() {}
@@ -127,6 +129,9 @@ public class Utilisateur {
 
     public Statut getStatut() { return statut; }
     public void setStatut(Statut statut) { this.statut = statut; }
+
+    public EtatIncident getEtatIncident() { return etatIncident; }
+    public void setEtatIncident(EtatIncident etatIncident) { this.etatIncident = etatIncident; }
 
     public LocalDateTime getDateCreation() { return dateCreation; }
     public void setDateCreation(LocalDateTime dateCreation) { this.dateCreation = dateCreation; }

@@ -40,6 +40,7 @@ import com.cloudinary.utils.ObjectUtils;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.transport.transport.dto.TransporteurPanneCommandesResponse;
 import com.transport.transport.dto.UserPosition;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
@@ -443,6 +444,7 @@ public static record LoginRequest(String email, String motDePasse) {}
                     // Nouveaux champs: latitude / longitude (si tu utilises Double)
                     if (updated.getLatitude() != 0.0) user.setLatitude(updated.getLatitude());
                     if (updated.getLongitude() != 0.0) user.setLongitude(updated.getLongitude());
+                    if (updated.getEtatIncident() != null) user.setEtatIncident(updated.getEtatIncident());
 
                     utilisateurRepository.save(user);
 
@@ -603,6 +605,26 @@ public ResponseEntity<Utilisateur> updateZoneAriverDepart(
   return ResponseEntity.ok(updated);
 }
 
+@PutMapping("/{id}/etat-incident/panne")
+public ResponseEntity<?> marquerTransporteurEnPanne(@PathVariable String id) {
+  try {
+    Utilisateur updated = utilisateurService.marquerEnPanne(id);
+    return ResponseEntity.ok(updated);
+  } catch (ResponseStatusException ex) {
+    return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
+  }
+}
+
+@PutMapping("/{id}/etat-incident/accident")
+public ResponseEntity<?> marquerTransporteurEnAccident(@PathVariable String id) {
+  try {
+    Utilisateur updated = utilisateurService.marquerEnAccident(id);
+    return ResponseEntity.ok(updated);
+  } catch (ResponseStatusException ex) {
+    return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
+  }
+}
+
 public static record PositionsRequest(List<String> ids) {}
 
 // POST /api/utilisateur/positions
@@ -613,6 +635,11 @@ public ResponseEntity<?> getPositions(@RequestBody PositionsRequest body) {
   }
   List<UserPosition> positions = utilisateurService.getPositionsByUserIds(body.ids());
   return ResponseEntity.ok(positions);
+}
+
+@GetMapping("/transporteurs/panne/commandes")
+public ResponseEntity<List<TransporteurPanneCommandesResponse>> getTransporteursEnPanneAvecCommandes() {
+  return ResponseEntity.ok(utilisateurService.getTransporteursEnPanneAvecCommandes());
 }
 
 

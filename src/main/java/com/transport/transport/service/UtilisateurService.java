@@ -14,8 +14,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.transport.transport.dto.CommandeProduitsPanneResponse;
+import com.transport.transport.dto.TransporteurPanneCommandesResponse;
+import com.transport.transport.dto.TransporteurPanneInfo;
+import com.transport.transport.model.Commande;
+import com.transport.transport.model.Produit;
 import com.transport.transport.dto.UserPosition;
 import com.transport.transport.model.Utilisateur;
+import com.transport.transport.repository.CommandeRepository;
+import com.transport.transport.repository.ProduitRepository;
 import com.transport.transport.repository.UtilisateurRepository;
 
 @Service
@@ -27,11 +34,19 @@ public class UtilisateurService {
   private static final Duration TIMEOUT = Duration.ofSeconds(60);
 
   private final UtilisateurRepository repo;
+  private final CommandeRepository commandeRepository;
+  private final ProduitRepository produitRepository;
   private final PasswordEncoder passwordEncoder;
   
   
-  public UtilisateurService(UtilisateurRepository repo, PasswordEncoder passwordEncoder) {
+  public UtilisateurService(
+      UtilisateurRepository repo,
+      CommandeRepository commandeRepository,
+      ProduitRepository produitRepository,
+      PasswordEncoder passwordEncoder) {
     this.repo = repo;
+    this.commandeRepository = commandeRepository;
+    this.produitRepository = produitRepository;
     this.passwordEncoder = passwordEncoder;
   }
 
@@ -217,12 +232,67 @@ public class UtilisateurService {
     return u;
   }
 
+  public Utilisateur marquerEnPanne(String userId) {
+    return updateEtatIncident(userId, Utilisateur.EtatIncident.PANNE);
+  }
+
+  public Utilisateur marquerEnAccident(String userId) {
+    return updateEtatIncident(userId, Utilisateur.EtatIncident.ACCIDENT);
+  }
+
+  private Utilisateur updateEtatIncident(String userId, Utilisateur.EtatIncident etatIncident) {
+    Utilisateur u = repo.findById(userId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+
+    if (u.getRole() != Utilisateur.Role.transporteur) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Seul un utilisateur avec le role transporteur peut avoir un etat d'incident");
+    }
+
+    u.setEtatIncident(etatIncident);
+    repo.save(u);
+    u.setMotDePasse(null);
+    return u;
+  }
+
   public List<UserPosition> getPositionsByUserIds(List<String> ids) {
     if (ids == null || ids.isEmpty()) return List.of();
 
     return repo.findAllById(ids)
         .stream()
         .map(u -> new UserPosition(u.getId(), u.getLatitude(), u.getLongitude()))
+        .collect(Collectors.toList());
+  }
+
+  public List<TransporteurPanneCommandesResponse> getTransporteursEnPanneAvecCommandes() {
+    List<Utilisateur> transporteursEnPanne = repo.findByRoleAndEtatIncident(
+        Utilisateur.Role.transporteur,
+        Utilisateur.EtatIncident.PANNE);
+
+    return transporteursEnPanne.stream()
+        .map(transporteur -> {
+          List<CommandeProduitsPanneResponse> commandes = commandeRepository
+              .findByTransporteurIdAndStatutOrderByDateDemandeDesc(
+                  transporteur.getId(),
+                  Commande.Statut.en_route)
+              .stream()
+              .map(commande -> {
+                List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
+                return new CommandeProduitsPanneResponse(commande, produits);
+              })
+              .collect(Collectors.toList());
+
+          TransporteurPanneInfo transporteurInfo = new TransporteurPanneInfo(
+              transporteur.getId(),
+              transporteur.getNom(),
+              transporteur.getPrenom(),
+              transporteur.getTelephone(),
+              transporteur.getLatitude(),
+              transporteur.getLongitude());
+
+          return new TransporteurPanneCommandesResponse(transporteurInfo, commandes);
+        })
         .collect(Collectors.toList());
   }
 

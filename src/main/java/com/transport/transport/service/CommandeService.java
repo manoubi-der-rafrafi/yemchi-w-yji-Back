@@ -500,6 +500,8 @@ public List<String> trouverTransporteursMinCommandes(String commandeId) {
             .stream()
             .filter(u -> u.getRole() == Utilisateur.Role.transporteur)
             .filter(u -> u.getStatut() == Utilisateur.Statut.actif)
+            .filter(u -> u.getEtatIncident() == null
+                    || u.getEtatIncident() == Utilisateur.EtatIncident.RIEN)
             .filter(u -> transporteurCouvreSousZones(
                     u, commande.getSousZoneDepart(), commande.getSousZoneArrivee()))
             .collect(Collectors.toList());
