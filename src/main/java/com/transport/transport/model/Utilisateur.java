@@ -5,10 +5,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+
+import com.fasterxml.jackson.annotation.JsonAlias;
 
 @Document(collection = "utilisateur")
 public class Utilisateur {
@@ -47,7 +48,7 @@ public class Utilisateur {
     private TypeVehicule typeVehicule;
 
     private Statut statut = Statut.actif;
-    private EtatIncident etatIncident = EtatIncident.RIEN;
+    private EtatIncident etatIncident;
 
     @CreatedDate
     private LocalDateTime dateCreation;
