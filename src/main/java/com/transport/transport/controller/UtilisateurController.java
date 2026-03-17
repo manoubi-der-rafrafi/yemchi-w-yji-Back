@@ -595,6 +595,11 @@ public static record UpdateZonesRequest(
     Map<String, List<String>> zoneAriver
 ) {}
 
+public static record DeclarerAccidentRequest(
+    Map<String, Integer> produitsAffectes,
+    List<String> produitsNonAffectes
+) {}
+
 // PUT /api/utilisateur/{id}/zones-depart-arriver
 @PutMapping("/{id}/zones-depart-arriver")
 public ResponseEntity<Utilisateur> updateZoneAriverDepart(
@@ -619,6 +624,21 @@ public ResponseEntity<?> marquerTransporteurEnPanne(@PathVariable String id) {
 public ResponseEntity<?> marquerTransporteurEnAccident(@PathVariable String id) {
   try {
     Utilisateur updated = utilisateurService.marquerEnAccident(id);
+    return ResponseEntity.ok(updated);
+  } catch (ResponseStatusException ex) {
+    return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
+  }
+}
+
+@PutMapping("/{id}/etat-incident/accident/produits")
+public ResponseEntity<?> declarerAccidentAvecProduits(
+    @PathVariable String id,
+    @RequestBody DeclarerAccidentRequest body) {
+  try {
+    Utilisateur updated = utilisateurService.declarerAccidentAvecProduits(
+        id,
+        body == null ? null : body.produitsAffectes(),
+        body == null ? null : body.produitsNonAffectes());
     return ResponseEntity.ok(updated);
   } catch (ResponseStatusException ex) {
     return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());

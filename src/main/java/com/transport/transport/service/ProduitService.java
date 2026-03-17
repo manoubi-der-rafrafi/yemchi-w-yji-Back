@@ -41,6 +41,8 @@ public class ProduitService {
             produit.setHauteur(produitDetails.getHauteur());
             produit.setPoids(produitDetails.getPoids());
             produit.setQuantite(produitDetails.getQuantite());
+            produit.setAffecter(produitDetails.getAffecter());
+            produit.setQuantiteAffecter(produitDetails.getQuantiteAffecter());
             produit.setFacade(produitDetails.getFacade());
             produit.setDescription(produitDetails.getDescription());
             produit.setImage1(produitDetails.getImage1());

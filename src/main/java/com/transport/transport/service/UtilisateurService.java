@@ -2,8 +2,13 @@ package com.transport.transport.service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -240,6 +245,127 @@ public class UtilisateurService {
     return updateEtatIncident(userId, Utilisateur.EtatIncident.ACCIDENT);
   }
 
+  public Utilisateur declarerAccidentAvecProduits(
+      String userId,
+      Map<String, Integer> produitsAffectes,
+      List<String> produitsNonAffectes) {
+    Utilisateur transporteur = repo.findById(userId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
+
+    if (transporteur.getRole() != Utilisateur.Role.transporteur) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Seul un utilisateur avec le role transporteur peut avoir un etat d'incident");
+    }
+
+    Map<String, Integer> affectes = (produitsAffectes == null) ? Map.of() : new HashMap<>(produitsAffectes);
+    List<String> nonAffectes = (produitsNonAffectes == null) ? List.of() : new ArrayList<>(produitsNonAffectes);
+
+    Set<String> doublons = new HashSet<>(affectes.keySet());
+    doublons.retainAll(nonAffectes);
+    if (!doublons.isEmpty()) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Un produit ne peut pas etre a la fois affecte et non affecte");
+    }
+
+    Set<String> produitIds = new HashSet<>(affectes.keySet());
+    produitIds.addAll(nonAffectes);
+    if (produitIds.isEmpty()) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Au moins un produit affecte ou non affecte est requis");
+    }
+
+    List<Produit> produits = produitRepository.findAllById(produitIds);
+    if (produits.size() != produitIds.size()) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Un ou plusieurs produits sont introuvables");
+    }
+
+    Map<String, Produit> produitsById = produits.stream()
+        .collect(Collectors.toMap(Produit::getId, p -> p));
+
+    Set<String> commandeIds = produits.stream()
+        .map(Produit::getCommandeId)
+        .collect(Collectors.toSet());
+
+    if (commandeIds.contains(null)) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Un ou plusieurs produits ne sont lies a aucune commande");
+    }
+
+    Map<String, Commande> commandesById = commandeRepository.findAllById(commandeIds)
+        .stream()
+        .collect(Collectors.toMap(Commande::getId, c -> c));
+
+    if (commandesById.size() != commandeIds.size()) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Une ou plusieurs commandes des produits sont introuvables");
+    }
+
+    for (Map.Entry<String, Integer> entry : affectes.entrySet()) {
+      String produitId = entry.getKey();
+      Integer quantiteAffecter = entry.getValue();
+      Produit produit = produitsById.get(produitId);
+
+      if (quantiteAffecter == null || quantiteAffecter < 0) {
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "La quantite affectee est invalide pour le produit " + produitId);
+      }
+      if (produit.getQuantite() == null) {
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "La quantite du produit " + produitId + " est absente");
+      }
+      if (quantiteAffecter > produit.getQuantite()) {
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "La quantite affectee depasse la quantite du produit " + produitId);
+      }
+
+      Commande commande = commandesById.get(produit.getCommandeId());
+      if (!transporteur.getId().equals(commande.getTransporteurId())) {
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Le produit " + produitId + " n'appartient pas a une commande de ce transporteur");
+      }
+    }
+
+    for (String produitId : nonAffectes) {
+      Produit produit = produitsById.get(produitId);
+      Commande commande = commandesById.get(produit.getCommandeId());
+      if (!transporteur.getId().equals(commande.getTransporteurId())) {
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Le produit " + produitId + " n'appartient pas a une commande de ce transporteur");
+      }
+    }
+
+    transporteur.setEtatIncident(Utilisateur.EtatIncident.ACCIDENT);
+
+    affectes.forEach((produitId, quantiteAffecter) -> {
+      Produit produit = produitsById.get(produitId);
+      produit.setAffecter(true);
+      produit.setQuantiteAffecter(quantiteAffecter);
+    });
+
+    nonAffectes.forEach(produitId -> {
+      Produit produit = produitsById.get(produitId);
+      produit.setAffecter(false);
+      produit.setQuantiteAffecter(0);
+    });
+
+    repo.save(transporteur);
+    produitRepository.saveAll(produits);
+    transporteur.setMotDePasse(null);
+    return transporteur;
+  }
+
   private Utilisateur updateEtatIncident(String userId, Utilisateur.EtatIncident etatIncident) {
     Utilisateur u = repo.findById(userId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Utilisateur non trouvé"));
@@ -288,6 +414,7 @@ public class UtilisateurService {
               transporteur.getNom(),
               transporteur.getPrenom(),
               transporteur.getTelephone(),
+              transporteur.getImage(),
               transporteur.getLatitude(),
               transporteur.getLongitude());
 

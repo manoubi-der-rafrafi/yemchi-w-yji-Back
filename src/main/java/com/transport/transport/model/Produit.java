@@ -20,6 +20,8 @@ public class Produit {
     private BigDecimal poids;
 
     private Integer quantite;
+    private Boolean affecter = false;
+    private Integer quantiteAffecter;
 
     private String facade;
     private String description;
@@ -57,6 +59,12 @@ public class Produit {
 
     public Integer getQuantite() { return quantite; }
     public void setQuantite(Integer quantite) { this.quantite = quantite; }
+
+    public Boolean getAffecter() { return affecter; }
+    public void setAffecter(Boolean affecter) { this.affecter = affecter; }
+
+    public Integer getQuantiteAffecter() { return quantiteAffecter; }
+    public void setQuantiteAffecter(Integer quantiteAffecter) { this.quantiteAffecter = quantiteAffecter; }
 
     public String getFacade() { return facade; }
     public void setFacade(String facade) { this.facade = facade; }
