@@ -9,6 +9,8 @@ import java.util.Map;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,6 +33,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -46,6 +50,8 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+
+  private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
 
   @Bean
   GoogleIdTokenVerifier googleVerifier(@Value("${app.google.client-id}") String clientId) {
@@ -130,6 +136,17 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
     return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
   }
 
+  @Bean
+  JwtAuthenticationConverter jwtAuthenticationConverter() {
+    JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
+    grantedAuthoritiesConverter.setAuthoritiesClaimName("roles");
+    grantedAuthoritiesConverter.setAuthorityPrefix("");
+
+    JwtAuthenticationConverter authenticationConverter = new JwtAuthenticationConverter();
+    authenticationConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
+    return authenticationConverter;
+  }
+
   /* =========================
      CORS (UNIQUE SOURCE DE VÉRITÉ)
      - Autorise localhost:4200, 127.0.0.1:4200 et ton front Vercel
@@ -166,11 +183,34 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
      Security Filter Chain
      ========================= */
   @Bean
-  SecurityFilterChain security(HttpSecurity http, UpdateLastSeenFilter lastSeenFilter) throws Exception {
+  SecurityFilterChain security(
+      HttpSecurity http,
+      UpdateLastSeenFilter lastSeenFilter,
+      JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
     http
       .csrf(csrf -> csrf.disable())
       .cors(Customizer.withDefaults())
       .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+      .exceptionHandling(ex -> ex
+          .authenticationEntryPoint((request, response, authException) -> {
+            logger.warn("401 unauthorized method={} uri={} message={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                authException.getMessage());
+            response.sendError(401);
+          })
+          .accessDeniedHandler((request, response, accessDeniedException) -> {
+            var auth = org.springframework.security.core.context.SecurityContextHolder
+                .getContext()
+                .getAuthentication();
+            logger.warn("403 forbidden method={} uri={} principal={} authorities={} message={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                auth != null ? auth.getName() : null,
+                auth != null ? auth.getAuthorities() : null,
+                accessDeniedException.getMessage());
+            response.sendError(403);
+          }))
       .authorizeHttpRequests(auth -> auth
           .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
           .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
@@ -189,7 +229,8 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
           .requestMatchers("/api/demandes/**").authenticated()
           .anyRequest().authenticated()
       )
-      .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+      .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
+          .jwtAuthenticationConverter(jwtAuthenticationConverter)));
 
     // Ne pas perturber l'auth : exécute après que le SecurityContext soit établi
     http.addFilterAfter(

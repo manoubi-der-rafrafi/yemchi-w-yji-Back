@@ -59,6 +59,9 @@ public class Commande {
     @JsonAlias({ "id_transporteur", "transporteur_id" })
     private String transporteurId;
 
+    @JsonAlias({ "transporteur_secours_id", "transporteurSecoursId", "id_transporteur_secours" })
+    private String transporteurSecoursId;
+
     @LastModifiedDate
     private LocalDateTime majLe;
     @JsonAlias({ "id_amie", "idAmie" })
@@ -246,6 +249,9 @@ public enum SousZone {
 
     public String getTransporteurId() { return transporteurId; }
     public void setTransporteurId(String transporteurId) { this.transporteurId = transporteurId; }
+
+    public String getTransporteurSecoursId() { return transporteurSecoursId; }
+    public void setTransporteurSecoursId(String transporteurSecoursId) { this.transporteurSecoursId = transporteurSecoursId; }
 
     public LocalDateTime getMajLe() { return majLe; }
     public void setMajLe(LocalDateTime majLe) { this.majLe = majLe; }

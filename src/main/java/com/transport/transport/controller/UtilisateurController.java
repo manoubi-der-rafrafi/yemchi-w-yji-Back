@@ -658,8 +658,11 @@ public ResponseEntity<?> getPositions(@RequestBody PositionsRequest body) {
 }
 
 @GetMapping("/transporteurs/panne/commandes")
-public ResponseEntity<List<TransporteurPanneCommandesResponse>> getTransporteursEnPanneAvecCommandes() {
-  return ResponseEntity.ok(utilisateurService.getTransporteursEnPanneAvecCommandes());
+public ResponseEntity<List<TransporteurPanneCommandesResponse>> getTransporteursEnPanneAvecCommandes(
+    Authentication authentication) {
+  return ResponseEntity.ok(
+      utilisateurService.getTransporteursEnPanneAvecCommandes(
+          authentication != null ? authentication.getName() : null));
 }
 
 

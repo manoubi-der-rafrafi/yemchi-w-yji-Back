@@ -21,6 +21,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.transport.transport.dto.TransporteurInfo;
+import com.transport.transport.dto.CommandeProduitsSecoursResponse;
+import com.transport.transport.dto.TransporteurSecoursCommandesResponse;
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Commande.Statut;
 import com.transport.transport.model.Produit;
@@ -121,6 +123,9 @@ public class CommandeService {
             }
             if (details.getTransporteurId() != null) {
                 commande.setTransporteurId(details.getTransporteurId());
+            }
+            if (details.getTransporteurSecoursId() != null) {
+                commande.setTransporteurSecoursId(details.getTransporteurSecoursId());
             }
             if (details.getIdAmie() != null) {
                 commande.setIdAmie(details.getIdAmie());
@@ -318,8 +323,138 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
         return commandeRepository.save(commande);
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
+public Commande assignerTransporteurSecours(
+        String idCommande,
+        String idTransporteurSecours,
+        String authenticatedEmail) {
+    logger.info(
+            "assignerTransporteurSecours start idCommande={} idTransporteurSecours={} authenticatedEmail={}",
+            idCommande,
+            idTransporteurSecours,
+            authenticatedEmail);
+    Utilisateur utilisateurConnecte = utilisateurRepository.findByEmailIgnoreCase(authenticatedEmail)
+            .orElseThrow(() -> new SecurityException("Utilisateur authentifie introuvable"));
+
+    logger.info(
+            "assignerTransporteurSecours utilisateurConnecte id={} role={}",
+            utilisateurConnecte.getId(),
+            utilisateurConnecte.getRole());
+
+    Utilisateur transporteurSecours = utilisateurRepository.findById(idTransporteurSecours)
+            .orElseThrow(() -> new IllegalArgumentException("Transporteur de secours introuvable"));
+
+    logger.info(
+            "assignerTransporteurSecours transporteurSecours id={} role={}",
+            transporteurSecours.getId(),
+            transporteurSecours.getRole());
+
+    if (transporteurSecours.getRole() != Utilisateur.Role.transporteur) {
+        logger.warn(
+                "assignerTransporteurSecours refused: cible non transporteur idTransporteurSecours={} role={}",
+                transporteurSecours.getId(),
+                transporteurSecours.getRole());
+        throw new IllegalArgumentException("L'utilisateur cible n'est pas un transporteur");
+    }
+
+    return commandeRepository.findById(idCommande).map(commande -> {
+        logger.info(
+                "assignerTransporteurSecours commande id={} transporteurId={} transporteurSecoursIdActuel={}",
+                commande.getId(),
+                commande.getTransporteurId(),
+                commande.getTransporteurSecoursId());
+        boolean estAdmin = utilisateurConnecte.getRole() == Utilisateur.Role.admin;
+        boolean estTransporteur = utilisateurConnecte.getRole() == Utilisateur.Role.transporteur;
+
+        logger.info(
+                "assignerTransporteurSecours authorization estAdmin={} estTransporteur={}",
+                estAdmin,
+                estTransporteur);
+
+        if (!estAdmin && !estTransporteur) {
+            logger.warn(
+                    "assignerTransporteurSecours refused: principal id={} role={} cannot modify commande",
+                    utilisateurConnecte.getId(),
+                    utilisateurConnecte.getRole());
+            throw new SecurityException("Acces refuse pour cette commande");
+        }
+        if (commande.getTransporteurSecoursId() != null && !commande.getTransporteurSecoursId().isBlank()) {
+            logger.warn(
+                    "assignerTransporteurSecours refused: secours deja affecte idCommande={} transporteurSecoursIdActuel={}",
+                    commande.getId(),
+                    commande.getTransporteurSecoursId());
+            throw new IllegalArgumentException("Un transporteur de secours est deja affecte a cette commande");
+        }
+        if (idTransporteurSecours.equals(commande.getTransporteurId())) {
+            logger.warn(
+                    "assignerTransporteurSecours refused: self-assignment idCommande={} transporteurId={}",
+                    commande.getId(),
+                    commande.getTransporteurId());
+            throw new IllegalArgumentException("Le transporteur principal ne peut pas etre son propre secours");
+        }
+
+        commande.setTransporteurSecoursId(idTransporteurSecours);
+        commande.setMajLe(LocalDateTime.now());
+        logger.info(
+                "assignerTransporteurSecours success idCommande={} transporteurSecoursId={}",
+                commande.getId(),
+                idTransporteurSecours);
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
 public List<Commande> getCommandesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur);
+}
+public List<TransporteurSecoursCommandesResponse> getTransporteursSecoursAvecCommandes(String idTransporteur) {
+    List<Commande> commandesSecours = commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur)
+            .stream()
+            .filter(commande -> commande.getTransporteurSecoursId() != null
+                    && !commande.getTransporteurSecoursId().isBlank())
+            .collect(Collectors.toList());
+
+    if (commandesSecours.isEmpty()) {
+        return List.of();
+    }
+
+    Map<String, Utilisateur> transporteursSecoursById = utilisateurRepository.findAllById(
+                    commandesSecours.stream()
+                            .map(Commande::getTransporteurSecoursId)
+                            .distinct()
+                            .collect(Collectors.toList()))
+            .stream()
+            .collect(Collectors.toMap(Utilisateur::getId, Function.identity()));
+
+    return commandesSecours.stream()
+            .collect(Collectors.groupingBy(
+                    Commande::getTransporteurSecoursId,
+                    LinkedHashMap::new,
+                    Collectors.toList()))
+            .entrySet()
+            .stream()
+            .map(entry -> {
+                Utilisateur transporteurSecours = transporteursSecoursById.get(entry.getKey());
+                if (transporteurSecours == null) {
+                    return null;
+                }
+
+                TransporteurInfo transporteurInfo = new TransporteurInfo(
+                        transporteurSecours.getId(),
+                        transporteurSecours.getNom(),
+                        transporteurSecours.getPrenom(),
+                        transporteurSecours.getTelephone(),
+                        transporteurSecours.getImage(),
+                        transporteurSecours.getLatitude(),
+                        transporteurSecours.getLongitude());
+
+                List<CommandeProduitsSecoursResponse> commandes = entry.getValue().stream()
+                        .map(commande -> new CommandeProduitsSecoursResponse(
+                                commande,
+                                produitRepository.findByCommandeId(commande.getId())))
+                        .collect(Collectors.toList());
+
+                return new TransporteurSecoursCommandesResponse(transporteurInfo, commandes);
+            })
+            .filter(java.util.Objects::nonNull)
+            .collect(Collectors.toList());
 }
 public List<Commande> getCommandesNonLivreesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdAndStatutNotInOrderByDateDemandeDesc(
@@ -517,12 +652,22 @@ public List<String> trouverTransporteursMinCommandes(String commandeId) {
             Commande.Statut.non_repondre_client_1,
             Commande.Statut.non_repondre_client_2
     );
+    List<Commande> toutesLesCommandes = commandeRepository.findAll();
 
     long min = Long.MAX_VALUE;
     Map<String, Long> counts = new LinkedHashMap<>();
     for (Utilisateur transporteur : transporteurs) {
-        long count = commandeRepository.countByTransporteurIdAndStatutIn(
-                transporteur.getId(), statutsEnCours);
+        long count = toutesLesCommandes.stream()
+                .filter(c -> {
+                    boolean chargePrincipale =
+                            transporteur.getId().equals(c.getTransporteurId())
+                                    && statutsEnCours.contains(c.getStatut());
+                    boolean chargeSecours =
+                            transporteur.getId().equals(c.getTransporteurSecoursId())
+                                    && c.getStatut() == Commande.Statut.en_route;
+                    return chargePrincipale || chargeSecours;
+                })
+                .count();
         counts.put(transporteur.getId(), count);
         if (count < min) {
             min = count;

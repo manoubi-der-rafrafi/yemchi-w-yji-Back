@@ -6,8 +6,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -19,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.transport.transport.dto.TransporteurInfo;
+import com.transport.transport.dto.TransporteurSecoursCommandesResponse;
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Produit;
 import com.transport.transport.model.TypeVehicule;
@@ -27,6 +32,8 @@ import com.transport.transport.service.CommandeService;
 @RestController
 @RequestMapping("/api/commandes")
 public class CommandeController {
+
+    private static final Logger logger = LoggerFactory.getLogger(CommandeController.class);
 
     @Autowired
     private CommandeService commandeService;
@@ -222,7 +229,7 @@ public class CommandeController {
             return ResponseEntity.badRequest().build();
         }
     }
-    @PutMapping("/{idCommande}/assigner/{idTransporteur}")
+@PutMapping("/{idCommande}/assigner/{idTransporteur}")
 public ResponseEntity<Commande> assignerTransporteur(
         @PathVariable String idCommande,
         @PathVariable String idTransporteur) {
@@ -235,9 +242,51 @@ public ResponseEntity<Commande> assignerTransporteur(
         return ResponseEntity.notFound().build();
     }
 }
+
+@PreAuthorize("hasAnyRole('ADMIN','TRANSPORTEUR')")
+@PutMapping("/{idCommande}/transporteur-secours/{idTransporteurSecours}")
+public ResponseEntity<Commande> assignerTransporteurSecours(
+        @PathVariable String idCommande,
+        @PathVariable String idTransporteurSecours,
+        Authentication authentication) {
+    logger.info(
+            "assignerTransporteurSecours request idCommande={} idTransporteurSecours={} principal={} authorities={}",
+            idCommande,
+            idTransporteurSecours,
+            authentication != null ? authentication.getName() : null,
+            authentication != null ? authentication.getAuthorities() : null);
+    try {
+        Commande commande = commandeService.assignerTransporteurSecours(
+                idCommande,
+                idTransporteurSecours,
+                authentication.getName());
+        return ResponseEntity.ok(commande);
+    } catch (SecurityException e) {
+        logger.warn(
+                "assignerTransporteurSecours forbidden idCommande={} idTransporteurSecours={} principal={} reason={}",
+                idCommande,
+                idTransporteurSecours,
+                authentication != null ? authentication.getName() : null,
+                e.getMessage());
+        return ResponseEntity.status(403).build();
+    } catch (IllegalArgumentException e) {
+        logger.warn(
+                "assignerTransporteurSecours invalid/not-found idCommande={} idTransporteurSecours={} principal={} reason={}",
+                idCommande,
+                idTransporteurSecours,
+                authentication != null ? authentication.getName() : null,
+                e.getMessage());
+        return ResponseEntity.notFound().build();
+    }
+}
 @GetMapping("/transporteur/{idTransporteur}")
 public List<Commande> getByTransporteur(@PathVariable String idTransporteur) {
     return commandeService.getCommandesByTransporteur(idTransporteur);
+}
+@GetMapping("/transporteur/{idTransporteur}/secours")
+public ResponseEntity<List<TransporteurSecoursCommandesResponse>> getTransporteursSecoursAvecCommandes(
+        @PathVariable String idTransporteur) {
+    return ResponseEntity.ok(commandeService.getTransporteursSecoursAvecCommandes(idTransporteur));
 }
 @GetMapping("/transporteur/{idTransporteur}/non-livrees")
 public List<Commande> getCommandesNonLivreesByTransporteur(@PathVariable String idTransporteur) {

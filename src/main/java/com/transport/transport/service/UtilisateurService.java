@@ -391,18 +391,26 @@ public class UtilisateurService {
         .collect(Collectors.toList());
   }
 
-  public List<TransporteurPanneCommandesResponse> getTransporteursEnPanneAvecCommandes() {
+  public List<TransporteurPanneCommandesResponse> getTransporteursEnPanneAvecCommandes(String authenticatedEmail) {
+    String utilisateurCourantId = repo.findByEmailIgnoreCase(authenticatedEmail)
+        .map(Utilisateur::getId)
+        .orElse(null);
+
     List<Utilisateur> transporteursEnPanne = repo.findByRoleAndEtatIncident(
         Utilisateur.Role.transporteur,
         Utilisateur.EtatIncident.PANNE);
 
     return transporteursEnPanne.stream()
+        .filter(transporteur -> utilisateurCourantId == null
+            || !transporteur.getId().equals(utilisateurCourantId))
         .map(transporteur -> {
           List<CommandeProduitsPanneResponse> commandes = commandeRepository
               .findByTransporteurIdAndStatutOrderByDateDemandeDesc(
                   transporteur.getId(),
                   Commande.Statut.en_route)
               .stream()
+              .filter(commande -> commande.getTransporteurSecoursId() == null
+                  || commande.getTransporteurSecoursId().isBlank())
               .map(commande -> {
                 List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
                 return new CommandeProduitsPanneResponse(commande, produits);
@@ -420,6 +428,7 @@ public class UtilisateurService {
 
           return new TransporteurPanneCommandesResponse(transporteurInfo, commandes);
         })
+        .filter(response -> !response.commandes().isEmpty())
         .collect(Collectors.toList());
   }
 
