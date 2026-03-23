@@ -23,10 +23,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.transport.transport.dto.TransporteurInfo;
+import com.transport.transport.dto.CommandeTransporteurPrincipalResponse;
 import com.transport.transport.dto.TransporteurSecoursCommandesResponse;
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Produit;
 import com.transport.transport.model.TypeVehicule;
+import com.transport.transport.model.Utilisateur;
 import com.transport.transport.service.CommandeService;
 
 @RestController
@@ -282,6 +284,33 @@ public ResponseEntity<Commande> assignerTransporteurSecours(
 @GetMapping("/transporteur/{idTransporteur}")
 public List<Commande> getByTransporteur(@PathVariable String idTransporteur) {
     return commandeService.getCommandesByTransporteur(idTransporteur);
+}
+@GetMapping("/transporteur/{idTransporteur}/etat-incident/{etatIncident}")
+public ResponseEntity<List<Commande>> getCommandesByTransporteurAndEtatIncident(
+        @PathVariable String idTransporteur,
+        @PathVariable Utilisateur.EtatIncident etatIncident) {
+    try {
+        return ResponseEntity.ok(
+                commandeService.getCommandesByTransporteurAndEtatIncident(idTransporteur, etatIncident));
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.badRequest().build();
+    }
+}
+@GetMapping("/transporteur-secours/{idTransporteur}/en-route")
+public ResponseEntity<List<CommandeTransporteurPrincipalResponse>> getCommandesEnRouteByTransporteurSecours(
+        @PathVariable String idTransporteur) {
+    return ResponseEntity.ok(commandeService.getCommandesEnRouteByTransporteurSecours(idTransporteur));
+}
+@PutMapping("/{id}/relais-transporteur-effectue")
+public ResponseEntity<Commande> marquerRelaisTransporteurEffectue(@PathVariable String id) {
+    try {
+        Commande commande = commandeService.marquerRelaisTransporteurEffectue(id);
+        return ResponseEntity.ok(commande);
+    } catch (IllegalStateException e) {
+        return ResponseEntity.badRequest().build();
+    } catch (IllegalArgumentException e) {
+        return ResponseEntity.notFound().build();
+    }
 }
 @GetMapping("/transporteur/{idTransporteur}/secours")
 public ResponseEntity<List<TransporteurSecoursCommandesResponse>> getTransporteursSecoursAvecCommandes(

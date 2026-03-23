@@ -630,6 +630,16 @@ public ResponseEntity<?> marquerTransporteurEnAccident(@PathVariable String id) 
   }
 }
 
+@PutMapping("/{id}/etat-incident/rien")
+public ResponseEntity<?> reinitialiserEtatIncidentTransporteur(@PathVariable String id) {
+  try {
+    Utilisateur updated = utilisateurService.reinitialiserEtatIncident(id);
+    return ResponseEntity.ok(updated);
+  } catch (ResponseStatusException ex) {
+    return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
+  }
+}
+
 @PutMapping("/{id}/etat-incident/accident/produits")
 public ResponseEntity<?> declarerAccidentAvecProduits(
     @PathVariable String id,

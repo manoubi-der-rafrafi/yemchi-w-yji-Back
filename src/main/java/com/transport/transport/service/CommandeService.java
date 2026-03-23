@@ -21,6 +21,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.transport.transport.dto.TransporteurInfo;
+import com.transport.transport.dto.CommandeTransporteurPrincipalResponse;
 import com.transport.transport.dto.CommandeProduitsSecoursResponse;
 import com.transport.transport.dto.TransporteurSecoursCommandesResponse;
 import com.transport.transport.model.Commande;
@@ -172,6 +173,9 @@ public class CommandeService {
             commande.setQrCodeReceptionScanne(details.isQrCodeReceptionScanne());
             if (details.getDateScanReception() != null) {
                 commande.setDateScanReception(details.getDateScanReception());
+            }
+            if (details.getRelaisTransporteurEffectue() != null) {
+                commande.setRelaisTransporteurEffectue(details.getRelaisTransporteurEffectue());
             }
             if (details.getVehicule() != null) {
                 commande.setVehicule(details.getVehicule());
@@ -393,6 +397,7 @@ public Commande assignerTransporteurSecours(
         }
 
         commande.setTransporteurSecoursId(idTransporteurSecours);
+        commande.setRelaisTransporteurEffectue(false);
         commande.setMajLe(LocalDateTime.now());
         logger.info(
                 "assignerTransporteurSecours success idCommande={} transporteurSecoursId={}",
@@ -401,8 +406,79 @@ public Commande assignerTransporteurSecours(
         return commandeRepository.save(commande);
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
+public Commande marquerRelaisTransporteurEffectue(String idCommande) {
+    return commandeRepository.findById(idCommande).map(commande -> {
+        if (commande.getTransporteurSecoursId() == null || commande.getTransporteurSecoursId().isBlank()) {
+            throw new IllegalStateException("Aucun transporteur de secours affecte a cette commande");
+        }
+        if (commande.getStatut() != Statut.en_route) {
+            throw new IllegalStateException("Le relais ne peut etre marque que pour une commande en_route");
+        }
+        if (!commande.isQrCodeDepartScanne()) {
+            throw new IllegalStateException(
+                    "Le relais ne s'applique que si les produits ont deja ete recuperes au depart");
+        }
+        if (Boolean.TRUE.equals(commande.getRelaisTransporteurEffectue())) {
+            return commande;
+        }
+
+        commande.setRelaisTransporteurEffectue(true);
+        commande.setMajLe(LocalDateTime.now());
+        return commandeRepository.save(commande);
+    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
 public List<Commande> getCommandesByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur);
+}
+public List<Commande> getCommandesByTransporteurAndEtatIncident(
+        String idTransporteur,
+        Utilisateur.EtatIncident etatIncident) {
+    Utilisateur transporteur = utilisateurRepository.findById(idTransporteur)
+            .orElseThrow(() -> new IllegalArgumentException("Transporteur introuvable"));
+
+    if (transporteur.getRole() != Utilisateur.Role.transporteur) {
+        throw new IllegalArgumentException("L'utilisateur cible n'est pas un transporteur");
+    }
+
+    if (etatIncident == null) {
+        throw new IllegalArgumentException("L'etat d'incident est obligatoire");
+    }
+
+    if (transporteur.getEtatIncident() != etatIncident) {
+        return List.of();
+    }
+
+    return commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur);
+}
+public List<CommandeTransporteurPrincipalResponse> getCommandesEnRouteByTransporteurSecours(String idTransporteur) {
+    List<Commande> commandes = commandeRepository.findByTransporteurSecoursIdAndStatutOrderByDateDemandeDesc(
+            idTransporteur,
+            Commande.Statut.en_route);
+
+    return commandes.stream()
+            .map(commande -> {
+                List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
+                TransporteurInfo transporteurInfo = null;
+                String transporteurPrincipalId = commande.getTransporteurId();
+
+                if (transporteurPrincipalId != null && !transporteurPrincipalId.isBlank()) {
+                    Utilisateur transporteurPrincipal = utilisateurRepository.findById(transporteurPrincipalId)
+                            .orElse(null);
+                    if (transporteurPrincipal != null) {
+                        transporteurInfo = new TransporteurInfo(
+                                transporteurPrincipal.getId(),
+                                transporteurPrincipal.getNom(),
+                                transporteurPrincipal.getPrenom(),
+                                transporteurPrincipal.getTelephone(),
+                                transporteurPrincipal.getImage(),
+                                transporteurPrincipal.getLatitude(),
+                                transporteurPrincipal.getLongitude());
+                    }
+                }
+
+                return new CommandeTransporteurPrincipalResponse(commande, produits, transporteurInfo);
+            })
+            .collect(Collectors.toList());
 }
 public List<TransporteurSecoursCommandesResponse> getTransporteursSecoursAvecCommandes(String idTransporteur) {
     List<Commande> commandesSecours = commandeRepository.findByTransporteurIdOrderByDateDemandeDesc(idTransporteur)

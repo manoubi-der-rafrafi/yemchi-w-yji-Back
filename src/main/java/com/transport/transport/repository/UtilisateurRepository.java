@@ -50,5 +50,8 @@ List<Utilisateur> searchByIdsAndNomAndPrenomRegex(List<String> ids, String nomRe
 List<Utilisateur> searchByIdsAndNomOrPrenomRegex(List<String> ids, String qRegex);
 List<Utilisateur> findAllByOnlineIsTrueAndLastSeenBefore(LocalDateTime cutoff);
 List<Utilisateur> findByRoleAndEtatIncident(Utilisateur.Role role, Utilisateur.EtatIncident etatIncident);
+List<Utilisateur> findByRoleAndEtatIncidentIn(
+    Utilisateur.Role role,
+    List<Utilisateur.EtatIncident> etatIncidents);
 
 }

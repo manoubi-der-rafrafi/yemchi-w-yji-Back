@@ -96,6 +96,8 @@ public class Commande {
 
     private boolean qrCodeReceptionScanne;
     private LocalDateTime dateScanReception;
+    @JsonAlias({ "relais_transporteur_effectue", "relaisTransporteurEffectue" })
+    private Boolean relaisTransporteurEffectue = false;
 
 
 
@@ -338,6 +340,14 @@ public enum SousZone {
 
     public void setDateScanReception(LocalDateTime dateScanReception) {
         this.dateScanReception = dateScanReception;
+    }
+
+    public Boolean getRelaisTransporteurEffectue() {
+        return relaisTransporteurEffectue;
+    }
+
+    public void setRelaisTransporteurEffectue(Boolean relaisTransporteurEffectue) {
+        this.relaisTransporteurEffectue = relaisTransporteurEffectue;
     }
 
     public void marquerDepartScanne() {

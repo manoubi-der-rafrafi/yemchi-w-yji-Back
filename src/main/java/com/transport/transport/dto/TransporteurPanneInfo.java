@@ -7,5 +7,6 @@ public record TransporteurPanneInfo(
     String telephone,
     String image,
     double latitude,
-    double longitude
+    double longitude,
+    String etatIncident
 ) {}

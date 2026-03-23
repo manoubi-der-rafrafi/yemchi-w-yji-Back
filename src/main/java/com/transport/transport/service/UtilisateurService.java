@@ -245,6 +245,10 @@ public class UtilisateurService {
     return updateEtatIncident(userId, Utilisateur.EtatIncident.ACCIDENT);
   }
 
+  public Utilisateur reinitialiserEtatIncident(String userId) {
+    return updateEtatIncident(userId, Utilisateur.EtatIncident.RIEN);
+  }
+
   public Utilisateur declarerAccidentAvecProduits(
       String userId,
       Map<String, Integer> produitsAffectes,
@@ -396,11 +400,11 @@ public class UtilisateurService {
         .map(Utilisateur::getId)
         .orElse(null);
 
-    List<Utilisateur> transporteursEnPanne = repo.findByRoleAndEtatIncident(
+    List<Utilisateur> transporteursEnIncident = repo.findByRoleAndEtatIncidentIn(
         Utilisateur.Role.transporteur,
-        Utilisateur.EtatIncident.PANNE);
+        List.of(Utilisateur.EtatIncident.PANNE, Utilisateur.EtatIncident.ACCIDENT));
 
-    return transporteursEnPanne.stream()
+    return transporteursEnIncident.stream()
         .filter(transporteur -> utilisateurCourantId == null
             || !transporteur.getId().equals(utilisateurCourantId))
         .map(transporteur -> {
@@ -424,7 +428,8 @@ public class UtilisateurService {
               transporteur.getTelephone(),
               transporteur.getImage(),
               transporteur.getLatitude(),
-              transporteur.getLongitude());
+              transporteur.getLongitude(),
+              transporteur.getEtatIncident() != null ? transporteur.getEtatIncident().name() : null);
 
           return new TransporteurPanneCommandesResponse(transporteurInfo, commandes);
         })
