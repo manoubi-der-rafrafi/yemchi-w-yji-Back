@@ -9,6 +9,8 @@ import java.util.Map;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,6 +37,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -147,6 +151,12 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
     return authenticationConverter;
   }
 
+  @Bean
+  BearerTokenResolver bearerTokenResolver() {
+    DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
+    return request -> isPublicEndpoint(request) ? null : delegate.resolve(request);
+  }
+
   /* =========================
      CORS (UNIQUE SOURCE DE VÉRITÉ)
      - Autorise localhost:4200, 127.0.0.1:4200 et ton front Vercel
@@ -186,7 +196,8 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
   SecurityFilterChain security(
       HttpSecurity http,
       UpdateLastSeenFilter lastSeenFilter,
-      JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
+      JwtAuthenticationConverter jwtAuthenticationConverter,
+      BearerTokenResolver bearerTokenResolver) throws Exception {
     http
       .csrf(csrf -> csrf.disable())
       .cors(Customizer.withDefaults())
@@ -229,8 +240,9 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
           .requestMatchers("/api/demandes/**").authenticated()
           .anyRequest().authenticated()
       )
-      .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt
-          .jwtAuthenticationConverter(jwtAuthenticationConverter)));
+      .oauth2ResourceServer(oauth2 -> oauth2
+          .bearerTokenResolver(bearerTokenResolver)
+          .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
 
     // Ne pas perturber l'auth : exécute après que le SecurityContext soit établi
     http.addFilterAfter(
@@ -239,5 +251,27 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
     );
 
     return http.build();
+  }
+
+  private boolean isPublicEndpoint(HttpServletRequest request) {
+    String method = request.getMethod();
+    String uri = request.getRequestURI();
+
+    if (HttpMethod.OPTIONS.matches(method)) {
+      return true;
+    }
+    if (HttpMethod.POST.matches(method)) {
+      return "/api/utilisateur/login".equals(uri)
+          || "/api/utilisateur/login/google".equals(uri)
+          || "/api/utilisateur/register".equals(uri)
+          || "/api/utilisateur/register/email".equals(uri)
+          || "/api/utilisateur/register/complete".equals(uri)
+          || "/api/utilisateur/send-email".equals(uri);
+    }
+    if (HttpMethod.GET.matches(method)) {
+      return "/api/utilisateur/verify-email".equals(uri)
+          || "/api/utilisateur/email-verification-status".equals(uri);
+    }
+    return false;
   }
 }

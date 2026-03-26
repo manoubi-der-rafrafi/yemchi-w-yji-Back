@@ -3,6 +3,8 @@ package com.transport.transport.service;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +19,7 @@ import okhttp3.Response;
 @Service
 public class MailService {
 
+  private static final Logger logger = LoggerFactory.getLogger(MailService.class);
   private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
   private static final String RESEND_API_URL = "https://api.resend.com/emails";
 
@@ -32,6 +35,25 @@ public class MailService {
   public MailService() {
     this.httpClient = new OkHttpClient();
     this.objectMapper = new ObjectMapper();
+  }
+
+  public static class MailDeliveryException extends RuntimeException {
+    private final int statusCode;
+    private final String providerResponseBody;
+
+    public MailDeliveryException(int statusCode, String providerResponseBody) {
+      super("Erreur Resend: HTTP " + statusCode + " - " + providerResponseBody);
+      this.statusCode = statusCode;
+      this.providerResponseBody = providerResponseBody;
+    }
+
+    public int getStatusCode() {
+      return statusCode;
+    }
+
+    public String getProviderResponseBody() {
+      return providerResponseBody;
+    }
   }
 
   /**
@@ -76,6 +98,10 @@ public class MailService {
     payload.put("subject", subject);
     payload.put(isHtml ? "html" : "text", body);
 
+    if ("onboarding@resend.dev".equalsIgnoreCase(fromEmail)) {
+      logger.warn("MailService utilise encore onboarding@resend.dev. Resend peut refuser l'envoi vers des adresses externes.");
+    }
+
     try {
       String json = objectMapper.writeValueAsString(payload);
       RequestBody requestBody = RequestBody.create(json, JSON);
@@ -90,9 +116,11 @@ public class MailService {
       try (Response response = httpClient.newCall(request).execute()) {
         if (!response.isSuccessful()) {
           String errorBody = response.body() != null ? response.body().string() : "";
-          throw new RuntimeException("Erreur Resend: HTTP " + response.code() + " - " + errorBody);
+          throw new MailDeliveryException(response.code(), errorBody);
         }
       }
+    } catch (MailDeliveryException e) {
+      throw e;
     } catch (Exception e) {
       throw new RuntimeException("Erreur lors de l'envoi de l'email", e);
     }

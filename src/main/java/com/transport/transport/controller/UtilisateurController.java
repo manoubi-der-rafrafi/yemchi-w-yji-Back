@@ -45,6 +45,7 @@ import com.transport.transport.dto.UserPosition;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
 import com.transport.transport.service.MailService;
+import com.transport.transport.service.MailService.MailDeliveryException;
 import com.transport.transport.service.UtilisateurService;
 @RestController
 @RequestMapping("/api/utilisateur")
@@ -268,7 +269,8 @@ public static record LoginRequest(String email, String motDePasse) {}
     if (email == null || email.isBlank()) {
       return ResponseEntity.badRequest().body("Email requis");
     }
-    return utilisateurRepository.findByEmailIgnoreCase(email)
+    try {
+      return utilisateurRepository.findByEmailIgnoreCase(email)
         .map(existing -> {
           boolean dejaVerifie = Boolean.TRUE.equals(existing.getIsEmailVerified());
           boolean hasDateCreation = existing.getDateCreation() != null;
@@ -301,6 +303,11 @@ public static record LoginRequest(String email, String motDePasse) {}
           created.setMotDePasse(null);
           return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("user", created, "verificationUrl", url));
         });
+    } catch (MailDeliveryException e) {
+      return buildMailFailureResponse(e, "Echec de l'envoi de l'email de verification");
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+    }
   }
 
   @PostMapping("/register/complete")
@@ -406,8 +413,38 @@ public static record LoginRequest(String email, String motDePasse) {}
       return ResponseEntity.badRequest().body("Contenu requis");
     }
     boolean isHtml = Boolean.TRUE.equals(req.html());
-    mailService.sendEmail(req.to(), req.subject(), req.body(), isHtml);
-    return ResponseEntity.ok(Map.of("success", true));
+    try {
+      mailService.sendEmail(req.to(), req.subject(), req.body(), isHtml);
+      return ResponseEntity.ok(Map.of("success", true));
+    } catch (MailDeliveryException e) {
+      return buildMailFailureResponse(e, "Echec de l'envoi de l'email");
+    } catch (IllegalStateException e) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+    }
+  }
+
+  private ResponseEntity<Map<String, Object>> buildMailFailureResponse(
+      MailDeliveryException e,
+      String prefixMessage) {
+    String providerMessage = sanitizeProviderMessage(e.getProviderResponseBody());
+    StringBuilder message = new StringBuilder(prefixMessage);
+    if (!providerMessage.isBlank()) {
+      message.append(": ").append(providerMessage);
+    }
+    if (e.getStatusCode() == 401 || e.getStatusCode() == 403) {
+      message.append(". Verifiez RESEND_API_KEY et RESEND_FROM. ")
+          .append("Avec onboarding@resend.dev, Resend peut refuser l'envoi vers des adresses externes.");
+    }
+    return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+        "error", message.toString(),
+        "providerStatus", e.getStatusCode()));
+  }
+
+  private String sanitizeProviderMessage(String providerMessage) {
+    if (providerMessage == null) {
+      return "";
+    }
+    return providerMessage.replaceAll("\\s+", " ").trim();
   }
     @PutMapping("/{id}")
     public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,
