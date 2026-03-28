@@ -9,8 +9,6 @@ import java.util.Map;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
-import jakarta.servlet.http.HttpServletRequest;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,6 +38,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -152,9 +151,9 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
   }
 
   @Bean
-  BearerTokenResolver bearerTokenResolver() {
+  BearerTokenResolver bearerTokenResolver(PublicEndpointMatcher publicEndpointMatcher) {
     DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
-    return request -> isPublicEndpoint(request) ? null : delegate.resolve(request);
+    return request -> publicEndpointMatcher.matches(request) ? null : delegate.resolve(request);
   }
 
   /* =========================
@@ -196,8 +195,10 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
   SecurityFilterChain security(
       HttpSecurity http,
       UpdateLastSeenFilter lastSeenFilter,
+      PublicEndpointMatcher publicEndpointMatcher,
       JwtAuthenticationConverter jwtAuthenticationConverter,
       BearerTokenResolver bearerTokenResolver) throws Exception {
+    RequestMatcher publicEndpoints = publicEndpointMatcher.requestMatcher();
     http
       .csrf(csrf -> csrf.disable())
       .cors(Customizer.withDefaults())
@@ -223,19 +224,9 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
             response.sendError(403);
           }))
       .authorizeHttpRequests(auth -> auth
-          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-          .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
-          .requestMatchers(HttpMethod.POST, "/api/utilisateur/login/google").permitAll()
-          .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/email").permitAll()
-          .requestMatchers(HttpMethod.POST, "/api/utilisateur/send-email").permitAll()
-          .requestMatchers("/api/utilisateur/register/**").permitAll()
-          .requestMatchers(HttpMethod.GET, "/api/utilisateur/verify-email").permitAll()
-          .requestMatchers(HttpMethod.GET, "/api/utilisateur/email-verification-status").permitAll()
-          .requestMatchers("/auth/**").permitAll()
+          .requestMatchers(publicEndpoints).permitAll()
           .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").authenticated()
           .requestMatchers(HttpMethod.GET,  "/api/presence/**").authenticated()
-          .requestMatchers("/api/produits/**").permitAll()
-          .requestMatchers("/api/utilisateur/register").permitAll()
           .requestMatchers("/api/commandes/**").authenticated()
           .requestMatchers("/api/demandes/**").authenticated()
           .anyRequest().authenticated()
@@ -251,27 +242,5 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
     );
 
     return http.build();
-  }
-
-  private boolean isPublicEndpoint(HttpServletRequest request) {
-    String method = request.getMethod();
-    String uri = request.getRequestURI();
-
-    if (HttpMethod.OPTIONS.matches(method)) {
-      return true;
-    }
-    if (HttpMethod.POST.matches(method)) {
-      return "/api/utilisateur/login".equals(uri)
-          || "/api/utilisateur/login/google".equals(uri)
-          || "/api/utilisateur/register".equals(uri)
-          || "/api/utilisateur/register/email".equals(uri)
-          || "/api/utilisateur/register/complete".equals(uri)
-          || "/api/utilisateur/send-email".equals(uri);
-    }
-    if (HttpMethod.GET.matches(method)) {
-      return "/api/utilisateur/verify-email".equals(uri)
-          || "/api/utilisateur/email-verification-status".equals(uri);
-    }
-    return false;
   }
 }

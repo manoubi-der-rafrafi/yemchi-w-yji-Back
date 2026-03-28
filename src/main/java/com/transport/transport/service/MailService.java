@@ -56,6 +56,18 @@ public class MailService {
     }
   }
 
+  private static String summarizeException(Exception e) {
+    Throwable current = e;
+    while (current.getCause() != null && current.getCause() != current) {
+      current = current.getCause();
+    }
+    String message = current.getMessage();
+    if (message == null || message.isBlank()) {
+      return current.getClass().getSimpleName();
+    }
+    return current.getClass().getSimpleName() + ": " + message;
+  }
+
   /**
    * Envoie un email HTML avec un bouton de verification via Resend.
    */
@@ -122,7 +134,7 @@ public class MailService {
     } catch (MailDeliveryException e) {
       throw e;
     } catch (Exception e) {
-      throw new RuntimeException("Erreur lors de l'envoi de l'email", e);
+      throw new MailDeliveryException(502, summarizeException(e));
     }
   }
 
