@@ -21,11 +21,9 @@ import com.transport.transport.service.PresenceService;
 public class UpdateLastSeenFilter extends OncePerRequestFilter {
 
   private final PresenceService presence;
-  private final PublicEndpointMatcher publicEndpointMatcher;
 
-  public UpdateLastSeenFilter(PresenceService presence, PublicEndpointMatcher publicEndpointMatcher) {
+  public UpdateLastSeenFilter(PresenceService presence) {
     this.presence = presence;
-    this.publicEndpointMatcher = publicEndpointMatcher;
   }
 
   @Override
@@ -33,6 +31,8 @@ public class UpdateLastSeenFilter extends OncePerRequestFilter {
                                   HttpServletResponse response,
                                   FilterChain chain) throws ServletException, IOException {
     try {
+      String path = request.getRequestURI();
+
       if (!shouldNotFilter(request)) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         boolean isAuth = auth != null && auth.isAuthenticated()
@@ -68,6 +68,8 @@ public class UpdateLastSeenFilter extends OncePerRequestFilter {
 
   @Override
   protected boolean shouldNotFilter(HttpServletRequest request) {
-    return publicEndpointMatcher.matches(request);
+    String p = request.getRequestURI();
+    if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
+    return p.startsWith("/auth/") || p.startsWith("/public/") || p.startsWith("/actuator/");
   }
 }
