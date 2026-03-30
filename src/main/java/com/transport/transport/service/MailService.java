@@ -64,21 +64,109 @@ public class MailService {
         ? "Veuillez confirmer votre adresse email en cliquant sur le bouton ci-dessous :"
         : customMessage;
 
-    String html = """
-        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-          <p>Bonjour,</p>
-          <p>%s</p>
-          <p style="text-align: center;">
-            <a href="%s" style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px;">
-              Verifier mon email
-            </a>
-          </p>
-          
-          <p>Ce lien expire dans quelques minutes.</p>
-        </div>
-        """.formatted(safeMessage, verificationUrl);
+    String html = buildVerificationEmailHtml(safeMessage, verificationUrl);
 
     sendEmail(toEmail, "Verifiez votre adresse email", html, true);
+  }
+
+  private String buildVerificationEmailHtml(String message, String verificationUrl) {
+    String escapedMessage = escapeHtml(message);
+    String escapedUrl = escapeHtml(verificationUrl);
+
+    return """
+        <!DOCTYPE html>
+        <html lang="fr">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Verification de votre email</title>
+          </head>
+          <body style="margin: 0; padding: 0; background-color: #f4f7fb; font-family: Arial, Helvetica, sans-serif; color: #14213d;">
+            <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; mso-hide: all;">
+              Confirmez votre adresse email pour activer votre compte.
+            </div>
+            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f4f7fb; margin: 0; padding: 24px 12px;">
+              <tr>
+                <td align="center">
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="max-width: 640px;">
+                    <tr>
+                      <td style="padding-bottom: 16px; text-align: center; font-size: 13px; color: #5c677d; letter-spacing: 0.08em; text-transform: uppercase;">
+                        Verification de compte
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #0f172a 0%%, #1d4ed8 100%%); border-radius: 24px 24px 0 0; padding: 32px 32px 24px 32px; color: #ffffff;">
+                        <div style="display: inline-block; background-color: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; padding: 8px 14px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;">
+                          SECURITE
+                        </div>
+                        <h1 style="margin: 18px 0 12px 0; font-size: 30px; line-height: 1.2; font-weight: 700;">
+                          Confirmez votre adresse email
+                        </h1>
+                        <p style="margin: 0; font-size: 16px; line-height: 1.7; color: #dbeafe;">
+                          Un dernier clic suffit pour finaliser l'activation de votre compte.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background-color: #ffffff; border-radius: 0 0 24px 24px; padding: 32px; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);">
+                        <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.7;">
+                          Bonjour,
+                        </p>
+                        <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.7; color: #334155;">
+                          %s
+                        </p>
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto 24px auto;">
+                          <tr>
+                            <td align="center" bgcolor="#2563eb" style="border-radius: 12px;">
+                              <a href="%s" style="display: inline-block; padding: 15px 26px; font-size: 16px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 12px;">
+                                Verifier mon email
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 24px; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px;">
+                          <tr>
+                            <td style="padding: 18px 20px;">
+                              <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 700; color: #1d4ed8;">
+                                Informations utiles
+                              </p>
+                              <p style="margin: 0; font-size: 14px; line-height: 1.7; color: #334155;">
+                                Ce lien expire dans quelques minutes. Si vous n'etes pas a l'origine de cette demande, vous pouvez ignorer cet email en toute securite.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin: 0 0 10px 0; font-size: 14px; line-height: 1.6; color: #475569;">
+                          Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :
+                        </p>
+                        <p style="margin: 0; word-break: break-word;">
+                          <a href="%s" style="font-size: 14px; line-height: 1.7; color: #2563eb; text-decoration: none;">
+                            %s
+                          </a>
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 18px 10px 0 10px; text-align: center; font-size: 12px; line-height: 1.6; color: #64748b;">
+                        Cet email a ete envoye automatiquement. Merci de ne pas y repondre.
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+        </html>
+        """.formatted(escapedMessage, escapedUrl, escapedUrl, escapedUrl);
+  }
+
+  private String escapeHtml(String value) {
+    return value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;");
   }
 
   /**

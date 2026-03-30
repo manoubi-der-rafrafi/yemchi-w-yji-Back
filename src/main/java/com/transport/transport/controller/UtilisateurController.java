@@ -307,6 +307,12 @@ public static record LoginRequest(String email, String motDePasse) {}
       return buildMailFailureResponse(e, "Echec de l'envoi de l'email de verification");
     } catch (IllegalStateException e) {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+    } catch (RuntimeException e) {
+      MailDeliveryException nested = findMailDeliveryException(e);
+      if (nested != null) {
+        return buildMailFailureResponse(nested, "Echec de l'envoi de l'email de verification");
+      }
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
     }
   }
 
@@ -420,6 +426,12 @@ public static record LoginRequest(String email, String motDePasse) {}
       return buildMailFailureResponse(e, "Echec de l'envoi de l'email");
     } catch (IllegalStateException e) {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+    } catch (RuntimeException e) {
+      MailDeliveryException nested = findMailDeliveryException(e);
+      if (nested != null) {
+        return buildMailFailureResponse(nested, "Echec de l'envoi de l'email");
+      }
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
     }
   }
 
@@ -445,6 +457,17 @@ public static record LoginRequest(String email, String motDePasse) {}
       return "";
     }
     return providerMessage.replaceAll("\\s+", " ").trim();
+  }
+
+  private MailDeliveryException findMailDeliveryException(Throwable throwable) {
+    Throwable current = throwable;
+    while (current != null) {
+      if (current instanceof MailDeliveryException mailDeliveryException) {
+        return mailDeliveryException;
+      }
+      current = current.getCause();
+    }
+    return null;
   }
     @PutMapping("/{id}")
     public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,

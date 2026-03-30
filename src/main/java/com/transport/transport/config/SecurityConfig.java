@@ -222,6 +222,7 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
           }))
       .authorizeHttpRequests(auth -> auth
           .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+          .requestMatchers("/error").permitAll()
           .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
           .requestMatchers(HttpMethod.POST, "/api/utilisateur/login/google").permitAll()
           .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/email").permitAll()
@@ -264,10 +265,12 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
           || "/api/utilisateur/register".equals(uri)
           || "/api/utilisateur/register/email".equals(uri)
           || "/api/utilisateur/register/complete".equals(uri)
+          || "/error".equals(uri)
           || "/api/utilisateur/send-email".equals(uri);
     }
     if (HttpMethod.GET.matches(method)) {
-      return "/api/utilisateur/verify-email".equals(uri)
+      return "/error".equals(uri)
+          || "/api/utilisateur/verify-email".equals(uri)
           || "/api/utilisateur/email-verification-status".equals(uri);
     }
     return false;
