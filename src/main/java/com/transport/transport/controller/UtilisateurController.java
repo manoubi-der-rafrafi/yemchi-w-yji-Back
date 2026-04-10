@@ -3,11 +3,16 @@ package com.transport.transport.controller;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -46,11 +51,13 @@ import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
 import com.transport.transport.service.MailService;
 import com.transport.transport.service.MailService.MailDeliveryException;
+import com.transport.transport.service.MailService.MailTransportException;
 import com.transport.transport.service.UtilisateurService;
 @RestController
 @RequestMapping("/api/utilisateur")
 public class UtilisateurController {
 
+    private static final Logger logger = LoggerFactory.getLogger(UtilisateurController.class);
 
 
     @Autowired
@@ -265,54 +272,111 @@ public static record LoginRequest(String email, String motDePasse) {}
 
   @PostMapping("/register/email")
   public ResponseEntity<?> createWithEmailOnly(@RequestBody Map<String, String> body) {
+    String traceId = UUID.randomUUID().toString();
     String email = body.get("email");
+    logger.info("traceId={} register/email start email={}", traceId, maskEmail(email));
     if (email == null || email.isBlank()) {
-      return ResponseEntity.badRequest().body("Email requis");
+      logger.warn("traceId={} register/email missing email", traceId);
+      return buildTextErrorResponse(HttpStatus.BAD_REQUEST, traceId, "REG_EMAIL_MISSING", "Email requis");
     }
     try {
       return utilisateurRepository.findByEmailIgnoreCase(email)
         .map(existing -> {
           boolean dejaVerifie = Boolean.TRUE.equals(existing.getIsEmailVerified());
           boolean hasDateCreation = existing.getDateCreation() != null;
+          logger.info(
+              "traceId={} register/email existing user email={} verified={} hasDateCreation={}",
+              traceId,
+              maskEmail(existing.getEmail()),
+              dejaVerifie,
+              hasDateCreation);
           if (dejaVerifie && hasDateCreation) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email deja existe");
+            logger.warn("traceId={} register/email conflict existing verified account email={}",
+                traceId, maskEmail(existing.getEmail()));
+            return buildTextErrorResponse(
+                HttpStatus.CONFLICT,
+                traceId,
+                "REG_EMAIL_ALREADY_EXISTS",
+                "Email deja existe");
           }
           if (dejaVerifie && !hasDateCreation) {
             existing.setIsEmailVerified(null);
             existing = utilisateurRepository.save(existing);
+            logger.info("traceId={} register/email reset verification state email={}",
+                traceId, maskEmail(existing.getEmail()));
           }
           String token = buildVerificationToken(existing);
           String url = buildVerificationUrl(token);
+          logger.info("traceId={} register/email sending verification email existingUser=true email={}",
+              traceId, maskEmail(existing.getEmail()));
           mailService.sendVerificationEmail(
               existing.getEmail(),
               url,
               "Merci de confirmer votre adresse email pour activer votre compte."
           );
+          logger.info("traceId={} register/email verification email sent email={}",
+              traceId, maskEmail(existing.getEmail()));
           existing.setMotDePasse(null);
-          return ResponseEntity.ok(Map.of("user", existing, "verificationUrl", url));
+          return ResponseEntity.ok()
+              .headers(traceHeaders(traceId, null))
+              .body(Map.of("user", existing, "verificationUrl", url));
         })
         .orElseGet(() -> {
           Utilisateur created = utilisateurService.createUserWithEmail(email);
           String token = buildVerificationToken(created);
           String url = buildVerificationUrl(token);
+          logger.info("traceId={} register/email sending verification email existingUser=false email={}",
+              traceId, maskEmail(created.getEmail()));
           mailService.sendVerificationEmail(
               created.getEmail(),
               url,
               "Merci de confirmer votre adresse email pour terminer la création de votre compte."
           );
+          logger.info("traceId={} register/email verification email sent email={}",
+              traceId, maskEmail(created.getEmail()));
           created.setMotDePasse(null);
-          return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("user", created, "verificationUrl", url));
+          return ResponseEntity.status(HttpStatus.CREATED)
+              .headers(traceHeaders(traceId, null))
+              .body(Map.of("user", created, "verificationUrl", url));
         });
     } catch (MailDeliveryException e) {
-      return buildMailFailureResponse(e, "Echec de l'envoi de l'email de verification");
+      return buildMailFailureResponse(
+          e,
+          traceId,
+          "REGISTER_EMAIL_PROVIDER_ERROR",
+          "Echec de l'envoi de l'email de verification");
+    } catch (MailTransportException e) {
+      logger.error("traceId={} register/email transport failure email={}", traceId, maskEmail(email), e);
+      return buildJsonErrorResponse(
+          HttpStatus.BAD_GATEWAY,
+          traceId,
+          "REGISTER_EMAIL_TRANSPORT_ERROR",
+          "Echec reseau lors de l'envoi de l'email de verification",
+          Map.of("cause", e.getMessage()));
     } catch (IllegalStateException e) {
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+      logger.error("traceId={} register/email config failure email={}", traceId, maskEmail(email), e);
+      return buildJsonErrorResponse(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          traceId,
+          "REGISTER_EMAIL_CONFIG_ERROR",
+          e.getMessage(),
+          null);
     } catch (RuntimeException e) {
       MailDeliveryException nested = findMailDeliveryException(e);
       if (nested != null) {
-        return buildMailFailureResponse(nested, "Echec de l'envoi de l'email de verification");
+        return buildMailFailureResponse(
+            nested,
+            traceId,
+            "REGISTER_EMAIL_PROVIDER_ERROR",
+            "Echec de l'envoi de l'email de verification");
       }
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+      logger.error("traceId={} register/email unexpected failure email={}", traceId, maskEmail(email), e);
+      return buildJsonErrorResponse(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          traceId,
+          "REGISTER_EMAIL_INTERNAL_ERROR",
+          e.getMessage(),
+          null);
     }
   }
 
@@ -409,36 +473,89 @@ public static record LoginRequest(String email, String motDePasse) {}
 
   @PostMapping("/send-email")
   public ResponseEntity<?> sendEmail(@RequestBody SendEmailRequest req) {
+    String traceId = UUID.randomUUID().toString();
     if (req == null || req.to() == null || req.to().isBlank()) {
-      return ResponseEntity.badRequest().body("Destinataire requis");
+      logger.warn("traceId={} send-email missing recipient", traceId);
+      return buildTextErrorResponse(
+          HttpStatus.BAD_REQUEST,
+          traceId,
+          "SEND_EMAIL_MISSING_RECIPIENT",
+          "Destinataire requis");
     }
     if (req.subject() == null || req.subject().isBlank()) {
-      return ResponseEntity.badRequest().body("Sujet requis");
+      logger.warn("traceId={} send-email missing subject to={}", traceId, maskEmail(req.to()));
+      return buildTextErrorResponse(
+          HttpStatus.BAD_REQUEST,
+          traceId,
+          "SEND_EMAIL_MISSING_SUBJECT",
+          "Sujet requis");
     }
     if (req.body() == null || req.body().isBlank()) {
-      return ResponseEntity.badRequest().body("Contenu requis");
+      logger.warn("traceId={} send-email missing body to={}", traceId, maskEmail(req.to()));
+      return buildTextErrorResponse(
+          HttpStatus.BAD_REQUEST,
+          traceId,
+          "SEND_EMAIL_MISSING_BODY",
+          "Contenu requis");
     }
     boolean isHtml = Boolean.TRUE.equals(req.html());
     try {
+      logger.info("traceId={} send-email start to={} subject={} html={}",
+          traceId, maskEmail(req.to()), req.subject(), isHtml);
       mailService.sendEmail(req.to(), req.subject(), req.body(), isHtml);
-      return ResponseEntity.ok(Map.of("success", true));
+      logger.info("traceId={} send-email success to={} subject={}",
+          traceId, maskEmail(req.to()), req.subject());
+      return ResponseEntity.ok()
+          .headers(traceHeaders(traceId, null))
+          .body(Map.of("success", true));
     } catch (MailDeliveryException e) {
-      return buildMailFailureResponse(e, "Echec de l'envoi de l'email");
+      return buildMailFailureResponse(
+          e,
+          traceId,
+          "SEND_EMAIL_PROVIDER_ERROR",
+          "Echec de l'envoi de l'email");
+    } catch (MailTransportException e) {
+      logger.error("traceId={} send-email transport failure to={}", traceId, maskEmail(req.to()), e);
+      return buildJsonErrorResponse(
+          HttpStatus.BAD_GATEWAY,
+          traceId,
+          "SEND_EMAIL_TRANSPORT_ERROR",
+          "Echec reseau lors de l'envoi de l'email",
+          Map.of("cause", e.getMessage()));
     } catch (IllegalStateException e) {
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+      logger.error("traceId={} send-email config failure to={}", traceId, maskEmail(req.to()), e);
+      return buildJsonErrorResponse(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          traceId,
+          "SEND_EMAIL_CONFIG_ERROR",
+          e.getMessage(),
+          null);
     } catch (RuntimeException e) {
       MailDeliveryException nested = findMailDeliveryException(e);
       if (nested != null) {
-        return buildMailFailureResponse(nested, "Echec de l'envoi de l'email");
+        return buildMailFailureResponse(
+            nested,
+            traceId,
+            "SEND_EMAIL_PROVIDER_ERROR",
+            "Echec de l'envoi de l'email");
       }
-      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+      logger.error("traceId={} send-email unexpected failure to={}", traceId, maskEmail(req.to()), e);
+      return buildJsonErrorResponse(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          traceId,
+          "SEND_EMAIL_INTERNAL_ERROR",
+          e.getMessage(),
+          null);
     }
   }
 
   private ResponseEntity<Map<String, Object>> buildMailFailureResponse(
       MailDeliveryException e,
+      String traceId,
+      String genericErrorCode,
       String prefixMessage) {
     String providerMessage = sanitizeProviderMessage(e.getProviderResponseBody());
+    String errorCode = resolveProviderErrorCode(genericErrorCode, e.getStatusCode());
     StringBuilder message = new StringBuilder(prefixMessage);
     if (!providerMessage.isBlank()) {
       message.append(": ").append(providerMessage);
@@ -447,9 +564,64 @@ public static record LoginRequest(String email, String motDePasse) {}
       message.append(". Verifiez RESEND_API_KEY et RESEND_FROM. ")
           .append("Avec onboarding@resend.dev, Resend peut refuser l'envoi vers des adresses externes.");
     }
-    return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
-        "error", message.toString(),
-        "providerStatus", e.getStatusCode()));
+    logger.error("traceId={} mail provider failure errorCode={} providerStatus={} providerMessage={}",
+        traceId, errorCode, e.getStatusCode(), providerMessage);
+    return buildJsonErrorResponse(
+        HttpStatus.BAD_GATEWAY,
+        traceId,
+        errorCode,
+        message.toString(),
+        Map.of("providerStatus", e.getStatusCode()));
+  }
+
+  private ResponseEntity<String> buildTextErrorResponse(
+      HttpStatus status,
+      String traceId,
+      String errorCode,
+      String message) {
+    return ResponseEntity.status(status)
+        .headers(traceHeaders(traceId, errorCode))
+        .body(message);
+  }
+
+  private ResponseEntity<Map<String, Object>> buildJsonErrorResponse(
+      HttpStatus status,
+      String traceId,
+      String errorCode,
+      String message,
+      Map<String, Object> extraFields) {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("error", message);
+    body.put("errorCode", errorCode);
+    body.put("traceId", traceId);
+    if (extraFields != null && !extraFields.isEmpty()) {
+      body.putAll(extraFields);
+    }
+    return ResponseEntity.status(status)
+        .headers(traceHeaders(traceId, errorCode))
+        .body(body);
+  }
+
+  private HttpHeaders traceHeaders(String traceId, String errorCode) {
+    HttpHeaders headers = new HttpHeaders();
+    headers.add("X-Trace-Id", traceId);
+    if (errorCode != null && !errorCode.isBlank()) {
+      headers.add("X-Error-Code", errorCode);
+    }
+    return headers;
+  }
+
+  private String resolveProviderErrorCode(String genericErrorCode, int providerStatus) {
+    if (providerStatus == 401 || providerStatus == 403) {
+      return genericErrorCode + "_AUTH";
+    }
+    if (providerStatus == 429) {
+      return genericErrorCode + "_RATE_LIMIT";
+    }
+    if (providerStatus >= 500) {
+      return genericErrorCode + "_UPSTREAM";
+    }
+    return genericErrorCode + "_REJECTED";
   }
 
   private String sanitizeProviderMessage(String providerMessage) {
@@ -468,6 +640,22 @@ public static record LoginRequest(String email, String motDePasse) {}
       current = current.getCause();
     }
     return null;
+  }
+
+  private String maskEmail(String email) {
+    if (email == null || email.isBlank()) {
+      return "<empty>";
+    }
+    int atIndex = email.indexOf('@');
+    if (atIndex <= 0) {
+      return "***";
+    }
+    String localPart = email.substring(0, atIndex);
+    String domain = email.substring(atIndex);
+    if (localPart.length() == 1) {
+      return localPart + "***" + domain;
+    }
+    return localPart.substring(0, Math.min(2, localPart.length())) + "***" + domain;
   }
     @PutMapping("/{id}")
     public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,
