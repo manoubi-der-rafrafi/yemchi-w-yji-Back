@@ -18,6 +18,9 @@ env/
 .springBeans
 .sts4-cache
 .env
+*.pem
+*.pfx
+*.key
 
 ### IntelliJ IDEA ###
 .idea
