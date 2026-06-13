@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,6 +20,8 @@ import org.springframework.web.multipart.MultipartFile;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.transport.transport.model.Facture;
+import com.transport.transport.model.Utilisateur;
+import com.transport.transport.service.AuthorizationService;
 import com.transport.transport.service.FactureService;
 
 @RestController
@@ -28,13 +31,19 @@ public class FactureController {
     @Autowired
     private FactureService factureService;
     private final Cloudinary cloudinary;
+    private final AuthorizationService authorizationService;
 
-    public FactureController(Cloudinary cloudinary) {
+    public FactureController(Cloudinary cloudinary, AuthorizationService authorizationService) {
         this.cloudinary = cloudinary;
+        this.authorizationService = authorizationService;
     }
 
     @PostMapping
-    public Facture createFacture(@RequestBody Facture facture) {
+    public Facture createFacture(@RequestBody Facture facture, Authentication authentication) {
+        Utilisateur current = authorizationService.currentUser(authentication);
+        if (!authorizationService.isAdmin(current)) {
+            facture.setIdLivreur(current.getId());
+        }
         return factureService.createFacture(facture);
     }
 
@@ -45,8 +54,13 @@ public class FactureController {
             @RequestParam("dateTimle") String dateTimle,
             @RequestParam("idLivreur") String idLivreur,
             @RequestParam("type") Facture.FactureType type,
-            @RequestParam(value = "confirmer", required = false) String confirmer) {
+            @RequestParam(value = "confirmer", required = false) String confirmer,
+            Authentication authentication) {
         try {
+            Utilisateur current = authorizationService.currentUser(authentication);
+            if (!authorizationService.isAdmin(current)) {
+                idLivreur = current.getId();
+            }
             if (image == null || image.isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("success", false, "message", "Fichier vide"));
@@ -83,20 +97,25 @@ public class FactureController {
     }
 
     @GetMapping("/livreur/{livreurId}")
-    public ResponseEntity<List<Facture>> listByLivreurId(@PathVariable String livreurId) {
+    public ResponseEntity<List<Facture>> listByLivreurId(@PathVariable String livreurId, Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(livreurId, authentication);
         return ResponseEntity.ok(factureService.listByLivreurId(livreurId));
     }
 
     @GetMapping("/livreur/{livreurId}/sum-entreprise-verse-livreur")
     public ResponseEntity<BigDecimal> sumMontantEntrepriseVerseLivreurByLivreurId(
-            @PathVariable String livreurId) {
+            @PathVariable String livreurId,
+            Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(livreurId, authentication);
         BigDecimal total = factureService.sumMontantEntrepriseVerseLivreurByLivreurId(livreurId);
         return ResponseEntity.ok(total);
     }
 
     @GetMapping("/livreur/{livreurId}/sum-livreur-verse-entreprise")
     public ResponseEntity<BigDecimal> sumMontantLivreurVerseEntrepriseByLivreurId(
-            @PathVariable String livreurId) {
+            @PathVariable String livreurId,
+            Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(livreurId, authentication);
         BigDecimal total = factureService.sumMontantLivreurVerseEntrepriseByLivreurId(livreurId);
         return ResponseEntity.ok(total);
     }

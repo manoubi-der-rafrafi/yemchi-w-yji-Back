@@ -64,4 +64,11 @@ public class ProduitService {
         return produitRepository.findByCommandeId(idCommande);
     }
 
+    public List<Produit> getProduitsByCommandeIds(List<String> commandeIds) {
+        if (commandeIds == null || commandeIds.isEmpty()) {
+            return List.of();
+        }
+        return produitRepository.findByCommandeIdIn(commandeIds);
+    }
+
 }

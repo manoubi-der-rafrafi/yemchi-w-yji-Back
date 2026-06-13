@@ -29,6 +29,7 @@ import com.transport.transport.model.Commande;
 import com.transport.transport.model.Produit;
 import com.transport.transport.model.TypeVehicule;
 import com.transport.transport.model.Utilisateur;
+import com.transport.transport.service.AuthorizationService;
 import com.transport.transport.service.CommandeService;
 
 @RestController
@@ -39,30 +40,57 @@ public class CommandeController {
 
     @Autowired
     private CommandeService commandeService;
+    @Autowired
+    private AuthorizationService authorizationService;
 
     // GET : Liste de toutes les commandes
     @GetMapping
-    public List<Commande> getAllCommandes() {
-        return commandeService.getAllCommandes();
+    public List<Commande> getAllCommandes(Authentication authentication) {
+        Utilisateur current = authorizationService.currentUser(authentication);
+        if (authorizationService.isAdmin(current)) {
+            return commandeService.getAllCommandes();
+        }
+        return commandeService.getAllCommandes()
+                .stream()
+                .filter(c -> authorizationService.canAccessCommande(current, c))
+                .toList();
     }
 
     // GET : Récupérer une commande par id
     @GetMapping("/{id}")
-    public ResponseEntity<Commande> getCommandeById(@PathVariable String  id) {
+    public ResponseEntity<Commande> getCommandeById(@PathVariable String  id, Authentication authentication) {
         Optional<Commande> commande = commandeService.getCommandeById(id);
+        commande.ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         return commande.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     // POST : Créer une nouvelle commande
     @PostMapping
-    public Commande createCommande(@RequestBody Commande commande) {
+    public Commande createCommande(@RequestBody Commande commande, Authentication authentication) {
+        Utilisateur current = authorizationService.currentUser(authentication);
+        if (!authorizationService.isAdmin(current)) {
+            if (commande.getClientId() != null && !commande.getClientId().isBlank()
+                    && !current.getId().equals(commande.getClientId())) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.FORBIDDEN, "Acces refuse");
+            }
+            commande.setClientId(current.getId());
+        }
         return commandeService.createCommande(commande);
     }
 
     // PUT : Modifier une commande existante
     @PutMapping("/{id}")
-    public ResponseEntity<Commande> updateCommande(@PathVariable String  id, @RequestBody Commande commandeDetails) {
+    public ResponseEntity<Commande> updateCommande(@PathVariable String  id, @RequestBody Commande commandeDetails,
+                                                   Authentication authentication) {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
+        Utilisateur current = authorizationService.currentUser(authentication);
+        if (!authorizationService.isAdmin(current)) {
+            commandeDetails.setClientId(null);
+            commandeDetails.setTransporteurId(null);
+            commandeDetails.setTransporteurSecoursId(null);
+        }
         Commande updatedCommande = commandeService.updateCommande(id, commandeDetails);
         if (updatedCommande != null) {
             return ResponseEntity.ok(updatedCommande);
@@ -72,7 +100,15 @@ public class CommandeController {
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Commande> updateCommandePatch(@PathVariable String  id, @RequestBody Commande commandeDetails) {
+    public ResponseEntity<Commande> updateCommandePatch(@PathVariable String  id, @RequestBody Commande commandeDetails,
+                                                        Authentication authentication) {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
+        Utilisateur current = authorizationService.currentUser(authentication);
+        if (!authorizationService.isAdmin(current)) {
+            commandeDetails.setClientId(null);
+            commandeDetails.setTransporteurId(null);
+            commandeDetails.setTransporteurSecoursId(null);
+        }
         Commande updatedCommande = commandeService.updateCommandePatch(id, commandeDetails);
         if (updatedCommande != null) {
             return ResponseEntity.ok(updatedCommande);
@@ -83,25 +119,30 @@ public class CommandeController {
 
     // DELETE : Supprimer une commande
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCommande(@PathVariable String  id) {
+    public ResponseEntity<Void> deleteCommande(@PathVariable String  id, Authentication authentication) {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         commandeService.deleteCommande(id);
         return ResponseEntity.noContent().build();
     }
     @GetMapping("/client/{idClient}/en_cours")
-    public ResponseEntity<Commande> getCommandeEnCoursByClient(@PathVariable String  idClient) {
+    public ResponseEntity<Commande> getCommandeEnCoursByClient(@PathVariable String  idClient, Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(idClient, authentication);
         return commandeService.getCommandeEnCoursByClientId(idClient)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
     @GetMapping("/client/{idClient}/en-route/produits-transporteur")
     public ResponseEntity<List<CommandeProduitsTransporteurResponse>>
-            getCommandesProduitsTransporteurByClient(@PathVariable String idClient) {
+            getCommandesProduitsTransporteurByClient(@PathVariable String idClient, Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(idClient, authentication);
         return ResponseEntity.ok(commandeService.getCommandesProduitsTransporteurByClientId(idClient));
     }
 
     @GetMapping("/transporteur/{idTransporteur}/en-route/produits")
     public ResponseEntity<List<CommandeProduitsResponse>> getCommandesEnRouteAvecProduitsByTransporteur(
-            @PathVariable String idTransporteur) {
+            @PathVariable String idTransporteur,
+            Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
         return ResponseEntity.ok(
                 commandeService.getCommandesEnRouteAvecProduitsByTransporteur(idTransporteur));
     }
@@ -172,7 +213,8 @@ public class CommandeController {
     }
     // Historique simple d’un client
     @GetMapping("/client/{clientId}")
-    public ResponseEntity<?> getHistoriqueClient(@PathVariable String  clientId) {
+    public ResponseEntity<?> getHistoriqueClient(@PathVariable String  clientId, Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(clientId, authentication);
         try {
             List<Commande> historique = commandeService.getHistoriqueClient(clientId);
             return ResponseEntity.ok(historique);
@@ -181,8 +223,9 @@ public class CommandeController {
         }
     }
     @PutMapping("/{id}/confirmer")
-    public ResponseEntity<Commande> confirmerCommande(@PathVariable String  id) {
+    public ResponseEntity<Commande> confirmerCommande(@PathVariable String  id, Authentication authentication) {
         try {
+            commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
             Commande commande = commandeService.confirmerCommande(id);
             return ResponseEntity.ok(commande);
         } catch (IllegalArgumentException e) {
@@ -199,32 +242,39 @@ public class CommandeController {
         }
     }
     @GetMapping("/ami/{idAmie}")
-    public List<Commande> getByIdAmie(@PathVariable String idAmie) {
+    public List<Commande> getByIdAmie(@PathVariable String idAmie, Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(idAmie, authentication);
         return commandeService.getByIdAmie(idAmie);
     }
     @GetMapping("/ami/{idAmie}/count")
-    public ResponseEntity<Integer> countCommandesByIdAmie(@PathVariable String idAmie) {
+    public ResponseEntity<Integer> countCommandesByIdAmie(@PathVariable String idAmie, Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(idAmie, authentication);
         int count = commandeService.countCommandesByIdAmie(idAmie);
         return ResponseEntity.ok(count);
     }
     @GetMapping("/ami/{idAmie}/count/envoyee")
-    public ResponseEntity<Integer> countByIdAmieAndStatutEnvoyee(@PathVariable String idAmie) {
+    public ResponseEntity<Integer> countByIdAmieAndStatutEnvoyee(@PathVariable String idAmie, Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(idAmie, authentication);
         int count = commandeService.countCommandesByIdAmieAndStatutEnvoyee(idAmie);
         return ResponseEntity.ok(count);
     }
     @GetMapping("/zone/{zone}")
-    public List<Commande> getCommandesByZonePrincipale(@PathVariable Commande.Zone zone) {
-        return commandeService.getCommandesByZonePrincipale(zone);
-    }
+    public List<Commande> getCommandesByZonePrincipale(@PathVariable Commande.Zone zone, Authentication authentication) {
+        authorizationService.requireTransporteurOrAdmin(authentication);
+        return commandeService.getCommandesByZonePrincipaleConfirmees(zone);
+}
 
     @GetMapping("/zone/{zone}/confirmees")
-    public List<Commande> getCommandesConfirmeesByZone(@PathVariable Commande.Zone zone) {
+    public List<Commande> getCommandesConfirmeesByZone(@PathVariable Commande.Zone zone, Authentication authentication) {
+        authorizationService.requireTransporteurOrAdmin(authentication);
         return commandeService.getCommandesByZonePrincipaleConfirmees(zone);
     }
     @GetMapping("/zone/{zone}/vehicule/{vehicule}")
     public ResponseEntity<List<Commande>> getCommandesByZoneAndVehicule(
             @PathVariable Commande.Zone zone,
-            @PathVariable TypeVehicule vehicule) {
+            @PathVariable TypeVehicule vehicule,
+            Authentication authentication) {
+        authorizationService.requireTransporteurOrAdmin(authentication);
         try {
             return ResponseEntity.ok(commandeService.getCommandesByZonePrincipaleAndVehicule(zone, vehicule));
         } catch (IllegalArgumentException e) {
@@ -234,8 +284,14 @@ public class CommandeController {
 @PutMapping("/{idCommande}/assigner/{idTransporteur}")
 public ResponseEntity<Commande> assignerTransporteur(
         @PathVariable String idCommande,
-        @PathVariable String idTransporteur) {
+        @PathVariable String idTransporteur,
+        Authentication authentication) {
     try {
+        Utilisateur current = authorizationService.currentUser(authentication);
+        if (!authorizationService.isAdmin(current)
+                && (!authorizationService.isTransporteur(current) || !current.getId().equals(idTransporteur))) {
+            return ResponseEntity.status(403).build();
+        }
         Commande commande = commandeService.assignerTransporteur(idCommande, idTransporteur);
         return ResponseEntity.ok(commande);
     } catch (IllegalStateException e) {
@@ -282,13 +338,16 @@ public ResponseEntity<Commande> assignerTransporteurSecours(
     }
 }
 @GetMapping("/transporteur/{idTransporteur}")
-public List<Commande> getByTransporteur(@PathVariable String idTransporteur) {
+public List<Commande> getByTransporteur(@PathVariable String idTransporteur, Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return commandeService.getCommandesByTransporteur(idTransporteur);
 }
 @GetMapping("/transporteur/{idTransporteur}/etat-incident/{etatIncident}")
 public ResponseEntity<List<Commande>> getCommandesByTransporteurAndEtatIncident(
         @PathVariable String idTransporteur,
-        @PathVariable Utilisateur.EtatIncident etatIncident) {
+        @PathVariable Utilisateur.EtatIncident etatIncident,
+        Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     try {
         return ResponseEntity.ok(
                 commandeService.getCommandesByTransporteurAndEtatIncident(idTransporteur, etatIncident));
@@ -298,12 +357,15 @@ public ResponseEntity<List<Commande>> getCommandesByTransporteurAndEtatIncident(
 }
 @GetMapping("/transporteur-secours/{idTransporteur}/en-route")
 public ResponseEntity<List<CommandeTransporteurPrincipalResponse>> getCommandesEnRouteByTransporteurSecours(
-        @PathVariable String idTransporteur) {
+        @PathVariable String idTransporteur,
+        Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return ResponseEntity.ok(commandeService.getCommandesEnRouteByTransporteurSecours(idTransporteur));
 }
 @PutMapping("/{id}/relais-transporteur-effectue")
-public ResponseEntity<Commande> marquerRelaisTransporteurEffectue(@PathVariable String id) {
+public ResponseEntity<Commande> marquerRelaisTransporteurEffectue(@PathVariable String id, Authentication authentication) {
     try {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         Commande commande = commandeService.marquerRelaisTransporteurEffectue(id);
         return ResponseEntity.ok(commande);
     } catch (IllegalStateException e) {
@@ -314,66 +376,85 @@ public ResponseEntity<Commande> marquerRelaisTransporteurEffectue(@PathVariable 
 }
 @GetMapping("/transporteur/{idTransporteur}/secours")
 public ResponseEntity<List<TransporteurSecoursCommandesResponse>> getTransporteursSecoursAvecCommandes(
-        @PathVariable String idTransporteur) {
+        @PathVariable String idTransporteur,
+        Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return ResponseEntity.ok(commandeService.getTransporteursSecoursAvecCommandes(idTransporteur));
 }
 @GetMapping("/transporteur/{idTransporteur}/non-livrees")
-public List<Commande> getCommandesNonLivreesByTransporteur(@PathVariable String idTransporteur) {
+public List<Commande> getCommandesNonLivreesByTransporteur(@PathVariable String idTransporteur, Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return commandeService.getCommandesNonLivreesByTransporteur(idTransporteur);
 }
 @GetMapping("/transporteur/{idTransporteur}/livrees")
-public List<Commande> getCommandesLivreesByTransporteur(@PathVariable String idTransporteur) {
+public List<Commande> getCommandesLivreesByTransporteur(@PathVariable String idTransporteur, Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return commandeService.getCommandesLivreesByTransporteur(idTransporteur);
 }
 @GetMapping("/transporteur/{idTransporteur}/total-livree")
-public ResponseEntity<BigDecimal> getSommePrixLivreeByTransporteur(@PathVariable String idTransporteur) {
+public ResponseEntity<BigDecimal> getSommePrixLivreeByTransporteur(@PathVariable String idTransporteur, Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     BigDecimal total = commandeService.getSommePrixCommandesLivreesByTransporteur(idTransporteur);
     return ResponseEntity.ok(total);
 }
 @GetMapping("/transporteur/{idTransporteur}/total-livree-en-ligne")
-public ResponseEntity<BigDecimal> getSommePrixLivreeEnLigneByTransporteur(@PathVariable String idTransporteur) {
+public ResponseEntity<BigDecimal> getSommePrixLivreeEnLigneByTransporteur(@PathVariable String idTransporteur, Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     BigDecimal total = commandeService.getSommePrixCommandesLivreesEnLigneByTransporteur(idTransporteur);
     return ResponseEntity.ok(total);
 }
 @GetMapping("/transporteur/{idTransporteur}/total-livree-hors-ligne")
-public ResponseEntity<BigDecimal> getSommePrixLivreeHorsLigneByTransporteur(@PathVariable String idTransporteur) {
+public ResponseEntity<BigDecimal> getSommePrixLivreeHorsLigneByTransporteur(@PathVariable String idTransporteur, Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     BigDecimal total = commandeService.getSommePrixCommandesLivreesHorsLigneByTransporteur(idTransporteur);
     return ResponseEntity.ok(total);
 }
 @GetMapping("/transporteur/{idTransporteur}/en-ligne")
 public List<Commande> getCommandesEnLigneByTransporteur(
         @PathVariable String idTransporteur,
-        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut) {
+        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut,
+        Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return commandeService.getCommandesEnLigneByTransporteur(idTransporteur, statut);
 }
 @GetMapping("/transporteur/{idTransporteur}/hors-ligne")
 public List<Commande> getCommandesHorsLigneByTransporteur(
         @PathVariable String idTransporteur,
-        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut) {
+        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut,
+        Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return commandeService.getCommandesHorsLigneByTransporteur(idTransporteur, statut);
 }
 @GetMapping("/transporteur/{idTransporteur}/sous-zone/{sousZone}/en-ligne")
 public List<Commande> getCommandesEnLigneByTransporteurAndSousZone(
         @PathVariable String idTransporteur,
         @PathVariable Commande.SousZone sousZone,
-        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut) {
+        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut,
+        Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return commandeService.getCommandesEnLigneByTransporteurAndSousZone(idTransporteur, sousZone, statut);
 }
 @GetMapping("/transporteur/{idTransporteur}/sous-zone/{sousZone}/hors-ligne")
 public List<Commande> getCommandesHorsLigneByTransporteurAndSousZone(
         @PathVariable String idTransporteur,
         @PathVariable Commande.SousZone sousZone,
-        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut) {
+        @org.springframework.web.bind.annotation.RequestParam(value = "statut", required = false) Commande.Statut statut,
+        Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return commandeService.getCommandesHorsLigneByTransporteurAndSousZone(idTransporteur, sousZone, statut);
 }
 @GetMapping("/transporteur/{idTransporteur}/pourcentage-sous-zone")
 public ResponseEntity<Map<String, Float>> getPourcentageRevenuParSousZoneLivree(
-        @PathVariable String idTransporteur) {
+        @PathVariable String idTransporteur,
+        Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
     return ResponseEntity.ok(
             commandeService.getPourcentageRevenuParSousZoneLivreeByTransporteur(idTransporteur));
 }
 @PostMapping("/sous-zones")
-public ResponseEntity<List<Commande>> getCommandesBySousZones(@RequestBody SousZoneFilterRequest request) {
+public ResponseEntity<List<Commande>> getCommandesBySousZones(@RequestBody SousZoneFilterRequest request,
+                                                              Authentication authentication) {
+    authorizationService.requireTransporteurOrAdmin(authentication);
     if (request == null) {
         return ResponseEntity.badRequest().build();
     }
@@ -396,7 +477,9 @@ public ResponseEntity<List<Commande>> getCommandesBySousZones(@RequestBody SousZ
 }
 @PostMapping("/sous-zones/vehicule")
 public ResponseEntity<List<Commande>> getCommandesBySousZonesAndVehicule(
-        @RequestBody SousZoneVehiculeFilterRequest request) {
+        @RequestBody SousZoneVehiculeFilterRequest request,
+        Authentication authentication) {
+    authorizationService.requireTransporteurOrAdmin(authentication);
     if (request == null) {
         return ResponseEntity.badRequest().build();
     }
@@ -420,8 +503,9 @@ public ResponseEntity<List<Commande>> getCommandesBySousZonesAndVehicule(
 }
 
 @PutMapping("/{id}/scan-depart")
-public ResponseEntity<Commande> marquerDepartScanne(@PathVariable String id) {
+public ResponseEntity<Commande> marquerDepartScanne(@PathVariable String id, Authentication authentication) {
     try {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         Commande commande = commandeService.marquerDepartScanne(id);
         return ResponseEntity.ok(commande);
     } catch (IllegalArgumentException e) {
@@ -430,8 +514,9 @@ public ResponseEntity<Commande> marquerDepartScanne(@PathVariable String id) {
 }
 
 @PutMapping("/{id}/appel-client-1")
-public ResponseEntity<Commande> marquerAppelClient1(@PathVariable String id) {
+public ResponseEntity<Commande> marquerAppelClient1(@PathVariable String id, Authentication authentication) {
     try {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         Commande commande = commandeService.marquerAppelClient1(id);
         return ResponseEntity.ok(commande);
     } catch (IllegalStateException e) {
@@ -442,8 +527,9 @@ public ResponseEntity<Commande> marquerAppelClient1(@PathVariable String id) {
 }
 
 @PutMapping("/{id}/debut-appel-client-1")
-public ResponseEntity<Commande> demarrerAppelClient1(@PathVariable String id) {
+public ResponseEntity<Commande> demarrerAppelClient1(@PathVariable String id, Authentication authentication) {
     try {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         Commande commande = commandeService.demarrerAppelClient1(id);
         return ResponseEntity.ok(commande);
     } catch (IllegalStateException e) {
@@ -454,8 +540,9 @@ public ResponseEntity<Commande> demarrerAppelClient1(@PathVariable String id) {
 }
 
 @PutMapping("/{id}/non-repondre-client-1")
-public ResponseEntity<Commande> marquerNonReponseClient1(@PathVariable String id) {
+public ResponseEntity<Commande> marquerNonReponseClient1(@PathVariable String id, Authentication authentication) {
     try {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         Commande commande = commandeService.marquerNonReponseClient1(id);
         return ResponseEntity.ok(commande);
     } catch (IllegalStateException e) {
@@ -466,8 +553,9 @@ public ResponseEntity<Commande> marquerNonReponseClient1(@PathVariable String id
 }
 
 @PutMapping("/{id}/appel-client-2")
-public ResponseEntity<Commande> marquerAppelClient2(@PathVariable String id) {
+public ResponseEntity<Commande> marquerAppelClient2(@PathVariable String id, Authentication authentication) {
     try {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         Commande commande = commandeService.marquerAppelClient2(id);
         return ResponseEntity.ok(commande);
     } catch (IllegalStateException e) {
@@ -478,8 +566,9 @@ public ResponseEntity<Commande> marquerAppelClient2(@PathVariable String id) {
 }
 
 @PutMapping("/{id}/non-repondre-client-2")
-public ResponseEntity<Commande> marquerNonReponseClient2(@PathVariable String id) {
+public ResponseEntity<Commande> marquerNonReponseClient2(@PathVariable String id, Authentication authentication) {
     try {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         Commande commande = commandeService.marquerNonReponseClient2(id);
         return ResponseEntity.ok(commande);
     } catch (IllegalStateException e) {
@@ -490,8 +579,9 @@ public ResponseEntity<Commande> marquerNonReponseClient2(@PathVariable String id
 }
 
 @PutMapping("/{id}/scan-reception")
-public ResponseEntity<Commande> marquerReceptionScanne(@PathVariable String id) {
+public ResponseEntity<Commande> marquerReceptionScanne(@PathVariable String id, Authentication authentication) {
     try {
+        commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
         Commande commande = commandeService.marquerReceptionScanne(id);
         return ResponseEntity.ok(commande);
     } catch (IllegalArgumentException e) {

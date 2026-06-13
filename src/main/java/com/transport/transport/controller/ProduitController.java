@@ -10,11 +10,13 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +32,8 @@ import org.springframework.web.multipart.MultipartFile;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.transport.transport.model.Produit;
+import com.transport.transport.repository.CommandeRepository;
+import com.transport.transport.service.AuthorizationService;
 import com.transport.transport.service.ProduitService;
 
 @RestController
@@ -38,8 +42,11 @@ public class ProduitController {
 
     @Autowired
     private ProduitService produitService;
+    @Autowired
+    private CommandeRepository commandeRepository;
     private final String uploadBaseDir = "C:/Users/Lenovo/Desktop/angular/transport/public/produits";
     private final Cloudinary cloudinary;
+    private final AuthorizationService authorizationService;
 
     @Value("${PYTHON_URL:http://127.0.0.1:8000}")
     private String pythonUrl;
@@ -48,33 +55,53 @@ public class ProduitController {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    public ProduitController(Cloudinary cloudinary) {
+    public ProduitController(Cloudinary cloudinary, AuthorizationService authorizationService) {
         this.cloudinary = cloudinary;
+        this.authorizationService = authorizationService;
     }
 
     // GET : Liste de tous les produits
     @GetMapping
-    public List<Produit> getAllProduits() {
-        return produitService.getAllProduits();
+    public List<Produit> getAllProduits(Authentication authentication) {
+        var current = authorizationService.currentUser(authentication);
+        if (authorizationService.isAdmin(current)) {
+            return produitService.getAllProduits();
+        }
+        List<String> commandeIds = commandeRepository.findAll()
+                .stream()
+                .filter(c -> authorizationService.canAccessCommande(current, c))
+                .map(c -> c.getId())
+                .collect(Collectors.toList());
+        if (commandeIds.isEmpty()) {
+            return List.of();
+        }
+        return produitService.getProduitsByCommandeIds(commandeIds);
     }
 
     // GET : Récupérer un produit par id
     @GetMapping("/{id}")
-    public ResponseEntity<Produit> getProduitById(@PathVariable String  id) {
+    public ResponseEntity<Produit> getProduitById(@PathVariable String  id, Authentication authentication) {
         Optional<Produit> produit = produitService.getProduitById(id);
+        produit.ifPresent(p -> requireProduitCommandeAccess(p, authentication));
         return produit.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
     // POST : Créer un nouveau produit
     @PostMapping
-    public Produit createProduit(@RequestBody Produit produit) {
+    public Produit createProduit(@RequestBody Produit produit, Authentication authentication) {
+        requireProduitCommandeAccess(produit, authentication);
         return produitService.createProduit(produit);
     }
 
     // PUT : Modifier un produit existant
     @PutMapping("/{id}")
-    public ResponseEntity<Produit> updateProduit(@PathVariable String  id, @RequestBody Produit produitDetails) {
+    public ResponseEntity<Produit> updateProduit(@PathVariable String  id, @RequestBody Produit produitDetails,
+                                                 Authentication authentication) {
+        produitService.getProduitById(id).ifPresent(p -> requireProduitCommandeAccess(p, authentication));
+        if (produitDetails.getCommandeId() != null && !produitDetails.getCommandeId().isBlank()) {
+            requireProduitCommandeAccess(produitDetails, authentication);
+        }
         Produit updatedProduit = produitService.updateProduit(id, produitDetails);
         if (updatedProduit != null) {
             return ResponseEntity.ok(updatedProduit);
@@ -85,12 +112,15 @@ public class ProduitController {
 
     // DELETE : Supprimer un produit
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteProduit(@PathVariable String  id) {
+    public ResponseEntity<Void> deleteProduit(@PathVariable String  id, Authentication authentication) {
+        produitService.getProduitById(id).ifPresent(p -> requireProduitCommandeAccess(p, authentication));
         produitService.deleteProduit(id);
         return ResponseEntity.noContent().build();
     }
     @GetMapping("/commande/{idCommande}")
-    public List<Produit> getProduitsByCommande(@PathVariable String  idCommande) {
+    public List<Produit> getProduitsByCommande(@PathVariable String  idCommande, Authentication authentication) {
+        commandeRepository.findById(idCommande)
+                .ifPresent(commande -> authorizationService.requireCommandeAccess(commande, authentication));
         return produitService.getProduitsByCommandeId(idCommande);
     }
 
@@ -207,5 +237,14 @@ public class ProduitController {
             e.printStackTrace();
             return ResponseEntity.status(500).body("erreur interne detection");
         }
+    }
+
+    private void requireProduitCommandeAccess(Produit produit, Authentication authentication) {
+        String commandeId = produit != null ? produit.getCommandeId() : null;
+        if (commandeId == null || commandeId.isBlank()) {
+            return;
+        }
+        commandeRepository.findById(commandeId)
+                .ifPresent(commande -> authorizationService.requireCommandeAccess(commande, authentication));
     }
 }

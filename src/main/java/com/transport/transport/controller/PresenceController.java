@@ -7,7 +7,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,12 +24,9 @@ public class PresenceController {
 
   @PostMapping("/heartbeat")
 public ResponseEntity<Void> heartbeat(
-    Authentication auth,
-    @RequestHeader(value = "X-User-Id", required = false) String userIdHeader
+    Authentication auth
 ) {
-  String principal = (userIdHeader != null && !userIdHeader.isBlank())
-      ? userIdHeader
-      : (auth != null && auth.isAuthenticated()
+  String principal = (auth != null && auth.isAuthenticated()
           && !"anonymousUser".equals(String.valueOf(auth.getPrincipal()))
           ? auth.getName()
           : null);

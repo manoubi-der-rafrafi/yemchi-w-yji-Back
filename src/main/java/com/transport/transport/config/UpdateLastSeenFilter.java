@@ -41,12 +41,9 @@ public class UpdateLastSeenFilter extends OncePerRequestFilter {
         String principal = null;
 
         if (isAuth) {
-          String headerId = request.getHeader("X-User-Id");
-          if (headerId != null && !headerId.isBlank()) {
-            principal = headerId;
-          } else if (auth instanceof JwtAuthenticationToken jat) {
+          if (auth instanceof JwtAuthenticationToken jat) {
             Object userIdClaim = jat.getToken().getClaims()
-                .getOrDefault("userId", jat.getToken().getSubject());
+                .getOrDefault("uid", jat.getToken().getSubject());
             principal = Objects.toString(userIdClaim, null);
           } else if (auth instanceof UsernamePasswordAuthenticationToken) {
             principal = auth.getName();

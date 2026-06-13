@@ -4,6 +4,7 @@ import java.util.Map;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.transport.transport.model.Demande;
+import com.transport.transport.service.AuthorizationService;
 import com.transport.transport.service.DemandeService;
 
 @RestController
@@ -25,10 +27,13 @@ public class DemandeController {
 
     private final DemandeService demandeService;
     private final Cloudinary cloudinary;
+    private final AuthorizationService authorizationService;
 
-    public DemandeController(DemandeService demandeService, Cloudinary cloudinary) {
+    public DemandeController(DemandeService demandeService, Cloudinary cloudinary,
+                             AuthorizationService authorizationService) {
         this.demandeService = demandeService;
         this.cloudinary = cloudinary;
+        this.authorizationService = authorizationService;
     }
 
     @GetMapping("/numero/existe")
@@ -50,7 +55,8 @@ public class DemandeController {
     }
 
     @PutMapping("/{id}/accepter")
-    public ResponseEntity<?> accepterDemande(@PathVariable("id") String idDemande) {
+    public ResponseEntity<?> accepterDemande(@PathVariable("id") String idDemande, Authentication authentication) {
+        authorizationService.requireAdmin(authentication);
         try {
             return ResponseEntity.ok(demandeService.accepterDemande(idDemande));
         } catch (RuntimeException e) {
@@ -59,7 +65,8 @@ public class DemandeController {
     }
 
     @PutMapping("/{id}/refuser")
-    public ResponseEntity<?> refuserDemande(@PathVariable("id") String idDemande) {
+    public ResponseEntity<?> refuserDemande(@PathVariable("id") String idDemande, Authentication authentication) {
+        authorizationService.requireAdmin(authentication);
         try {
             return ResponseEntity.ok(demandeService.refuserDemande(idDemande));
         } catch (RuntimeException e) {

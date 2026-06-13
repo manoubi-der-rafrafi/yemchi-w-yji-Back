@@ -49,6 +49,7 @@ import com.transport.transport.dto.TransporteurPanneCommandesResponse;
 import com.transport.transport.dto.UserPosition;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
+import com.transport.transport.service.AuthorizationService;
 import com.transport.transport.service.MailService;
 import com.transport.transport.service.MailService.MailDeliveryException;
 import com.transport.transport.service.MailService.MailTransportException;
@@ -70,6 +71,7 @@ public class UtilisateurController {
   private final PasswordEncoder passwordEncoder;
   private final GoogleIdTokenVerifier googleVerifier;
   private final MailService mailService;
+  private final AuthorizationService authorizationService;
   @Value("${app.verification.base-url:http://localhost:3000/verify-email}")
   private String verificationBaseUrl;
     // LOGIN : POST /api/utilisateur/login
@@ -80,7 +82,8 @@ public class UtilisateurController {
       JwtDecoder jwtDecoder,
       PasswordEncoder passwordEncoder,
       GoogleIdTokenVerifier googleVerifier,
-      MailService mailService) {
+      MailService mailService,
+      AuthorizationService authorizationService) {
         this.utilisateurService = utilisateurService;
         this.cloudinary = cloudinary;
         this.authManager = authManager;
@@ -89,6 +92,7 @@ public class UtilisateurController {
     this.passwordEncoder = passwordEncoder;
     this.googleVerifier = googleVerifier;
     this.mailService = mailService;
+    this.authorizationService = authorizationService;
 
     }
 
@@ -216,7 +220,11 @@ public static record LoginRequest(String email, String motDePasse) {}
 
     // Récupérer un utilisateur par ID (GET /api/utilisateur/id/1)
     @GetMapping("/id/{id}")
-    public ResponseEntity<?> getUtilisateurById(@PathVariable String  id) {
+    public ResponseEntity<?> getUtilisateurById(@PathVariable String  id, Authentication authentication) {
+        Utilisateur current = authorizationService.currentUser(authentication);
+        if (!authorizationService.canAccessUserData(current, id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Acces refuse");
+        }
         Utilisateur user = utilisateurRepository.findById(id).orElse(null);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouvé");
@@ -240,12 +248,9 @@ public static record LoginRequest(String email, String motDePasse) {}
     payload.setMotDePasse(passwordEncoder.encode(payload.getMotDePasse()));
 
     // Valeurs par défaut (statut/role), gérées aussi par UtilisateurService.saveUtilisateur(...)
-    if (payload.getStatut() == null) {
-      payload.setStatut(Utilisateur.Statut.actif);
-    }
-    if (payload.getRole() == null) {
-      payload.setRole(Utilisateur.Role.client);
-    }
+    payload.setStatut(Utilisateur.Statut.actif);
+    payload.setRole(Utilisateur.Role.client);
+    payload.setIsEmailVerified(false);
     if (payload.getDateCreation() == null) {
       payload.setDateCreation(Instant.now().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
     }
@@ -319,7 +324,7 @@ public static record LoginRequest(String email, String motDePasse) {}
           existing.setMotDePasse(null);
           return ResponseEntity.ok()
               .headers(traceHeaders(traceId, null))
-              .body(Map.of("user", existing, "verificationUrl", url));
+              .body(Map.of("user", existing));
         })
         .orElseGet(() -> {
           Utilisateur created = utilisateurService.createUserWithEmail(email);
@@ -337,7 +342,7 @@ public static record LoginRequest(String email, String motDePasse) {}
           created.setMotDePasse(null);
           return ResponseEntity.status(HttpStatus.CREATED)
               .headers(traceHeaders(traceId, null))
-              .body(Map.of("user", created, "verificationUrl", url));
+              .body(Map.of("user", created));
         });
     } catch (MailDeliveryException e) {
       return buildMailFailureResponse(
@@ -659,7 +664,13 @@ public static record LoginRequest(String email, String motDePasse) {}
   }
     @PutMapping("/{id}")
     public ResponseEntity<Object> updateUtilisateur(@PathVariable String  id,
-                                                    @RequestBody Utilisateur updated) {
+                                                    @RequestBody Utilisateur updated,
+                                                    Authentication authentication) {
+        Utilisateur current = authorizationService.currentUser(authentication);
+        boolean isAdmin = authorizationService.isAdmin(current);
+        if (!isAdmin && !current.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Acces refuse");
+        }
         return utilisateurRepository.findById(id)
                 .map(user -> {
                     // ⚠️ On met à jour uniquement si la nouvelle valeur est fournie (!= null)
@@ -679,10 +690,10 @@ public static record LoginRequest(String email, String motDePasse) {}
                     if (updated.getImageAssurance() != null)  user.setImageAssurance(updated.getImageAssurance());
 
                     // Optionnel : si tu autorises aussi ces champs à être mis à jour partiellement
-                    if (updated.getEmail() != null)          user.setEmail(updated.getEmail());
-                    if (updated.getRole() != null)           user.setRole(updated.getRole());
-                    if (updated.getStatut() != null)         user.setStatut(updated.getStatut());
-                    if (updated.getIsEmailVerified() != null)       user.setIsEmailVerified(updated.getIsEmailVerified());
+                    if (isAdmin && updated.getEmail() != null)          user.setEmail(updated.getEmail());
+                    if (isAdmin && updated.getRole() != null)           user.setRole(updated.getRole());
+                    if (isAdmin && updated.getStatut() != null)         user.setStatut(updated.getStatut());
+                    if (isAdmin && updated.getIsEmailVerified() != null)       user.setIsEmailVerified(updated.getIsEmailVerified());
 
                     if (updated.getSousZone() != null)       user.setSousZone(updated.getSousZone());
                     if (updated.getZone() != null)           user.setZone(updated.getZone());
@@ -750,8 +761,14 @@ public static record LoginRequest(String email, String motDePasse) {}
         }
     }
     @GetMapping("/me")
-    public ResponseEntity<?> me(@RequestParam String  id) {
-        // Version simple sans sécurité/JWT: on passe ?id=...
+    public ResponseEntity<?> me(@RequestParam(required = false) String  id, Authentication authentication) {
+        Utilisateur current = authorizationService.currentUser(authentication);
+        if (id == null || id.isBlank()) {
+            id = current.getId();
+        }
+        if (!authorizationService.isAdmin(current) && !current.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Acces refuse");
+        }
         Utilisateur user = utilisateurRepository.findById(id).orElse(null);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouvé");
@@ -762,7 +779,12 @@ public static record LoginRequest(String email, String motDePasse) {}
     // Dans UtilisateurController
 
     @PostMapping("/{id}/status")
-    public ResponseEntity<?> updateStatusPost(@PathVariable String  id, @RequestBody Map<String, String> body) {
+    public ResponseEntity<?> updateStatusPost(@PathVariable String  id, @RequestBody Map<String, String> body,
+                                              Authentication authentication) {
+        Utilisateur current = authorizationService.currentUser(authentication);
+        if (!authorizationService.isAdmin(current) && !current.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Acces refuse");
+        }
         String statut = body.get("statut"); // "actif" | "inactif" | "banni"
         return utilisateurRepository.findById(id)
                 .map(u -> {
@@ -793,7 +815,9 @@ public static record LoginRequest(String email, String motDePasse) {}
     @PutMapping("/{id}/localisation")
     public ResponseEntity<?> updateLocalisation(
             @PathVariable("id") String userId,
-            @RequestBody Map<String, Object> body) {
+            @RequestBody Map<String, Object> body,
+            Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(userId, authentication);
 
         // 1) Extraire latitude/longitude depuis le JSON du corps
         Double lat = null, lng = null;
@@ -822,8 +846,10 @@ public static record LoginRequest(String email, String motDePasse) {}
     @PutMapping("/{id}/zone/{zone}")
 public ResponseEntity<Utilisateur> updateZone(
     @PathVariable String id,
-    @PathVariable Utilisateur.Zone zone
+    @PathVariable Utilisateur.Zone zone,
+    Authentication authentication
 ) {
+  authorizationService.requireSelfOrAdmin(id, authentication);
   Utilisateur updated = utilisateurService.updateZone(id, zone);
   return ResponseEntity.ok(updated);
 }
@@ -832,8 +858,10 @@ public ResponseEntity<Utilisateur> updateZone(
 @PutMapping("/{id}/sous-zone/{sousZone}")
 public ResponseEntity<Utilisateur> updateSousZone(
     @PathVariable String id,
-    @PathVariable Utilisateur.SousZone sousZone
+    @PathVariable Utilisateur.SousZone sousZone,
+    Authentication authentication
 ) {
+  authorizationService.requireSelfOrAdmin(id, authentication);
   Utilisateur updated = utilisateurService.updateSousZone(id, sousZone);
   return ResponseEntity.ok(updated);
 }
@@ -852,15 +880,18 @@ public static record DeclarerAccidentRequest(
 @PutMapping("/{id}/zones-depart-arriver")
 public ResponseEntity<Utilisateur> updateZoneAriverDepart(
     @PathVariable String id,
-    @RequestBody UpdateZonesRequest body
+    @RequestBody UpdateZonesRequest body,
+    Authentication authentication
 ) {
+  authorizationService.requireSelfOrAdmin(id, authentication);
   Utilisateur updated = utilisateurService.updateZonesDepartAriver(id, body.zoneDepart(), body.zoneAriver());
   return ResponseEntity.ok(updated);
 }
 
 @PutMapping("/{id}/etat-incident/panne")
-public ResponseEntity<?> marquerTransporteurEnPanne(@PathVariable String id) {
+public ResponseEntity<?> marquerTransporteurEnPanne(@PathVariable String id, Authentication authentication) {
   try {
+    authorizationService.requireSelfOrAdmin(id, authentication);
     Utilisateur updated = utilisateurService.marquerEnPanne(id);
     return ResponseEntity.ok(updated);
   } catch (ResponseStatusException ex) {
@@ -869,8 +900,9 @@ public ResponseEntity<?> marquerTransporteurEnPanne(@PathVariable String id) {
 }
 
 @PutMapping("/{id}/etat-incident/accident")
-public ResponseEntity<?> marquerTransporteurEnAccident(@PathVariable String id) {
+public ResponseEntity<?> marquerTransporteurEnAccident(@PathVariable String id, Authentication authentication) {
   try {
+    authorizationService.requireSelfOrAdmin(id, authentication);
     Utilisateur updated = utilisateurService.marquerEnAccident(id);
     return ResponseEntity.ok(updated);
   } catch (ResponseStatusException ex) {
@@ -879,8 +911,9 @@ public ResponseEntity<?> marquerTransporteurEnAccident(@PathVariable String id) 
 }
 
 @PutMapping("/{id}/etat-incident/rien")
-public ResponseEntity<?> reinitialiserEtatIncidentTransporteur(@PathVariable String id) {
+public ResponseEntity<?> reinitialiserEtatIncidentTransporteur(@PathVariable String id, Authentication authentication) {
   try {
+    authorizationService.requireSelfOrAdmin(id, authentication);
     Utilisateur updated = utilisateurService.reinitialiserEtatIncident(id);
     return ResponseEntity.ok(updated);
   } catch (ResponseStatusException ex) {
@@ -891,8 +924,10 @@ public ResponseEntity<?> reinitialiserEtatIncidentTransporteur(@PathVariable Str
 @PutMapping("/{id}/etat-incident/accident/produits")
 public ResponseEntity<?> declarerAccidentAvecProduits(
     @PathVariable String id,
-    @RequestBody DeclarerAccidentRequest body) {
+    @RequestBody DeclarerAccidentRequest body,
+    Authentication authentication) {
   try {
+    authorizationService.requireSelfOrAdmin(id, authentication);
     Utilisateur updated = utilisateurService.declarerAccidentAvecProduits(
         id,
         body == null ? null : body.produitsAffectes(),
@@ -907,11 +942,14 @@ public static record PositionsRequest(List<String> ids) {}
 
 // POST /api/utilisateur/positions
 @PostMapping("/positions")
-public ResponseEntity<?> getPositions(@RequestBody PositionsRequest body) {
+public ResponseEntity<?> getPositions(@RequestBody PositionsRequest body, Authentication authentication) {
   if (body == null || body.ids() == null || body.ids().isEmpty()) {
     return ResponseEntity.badRequest().body("Liste d'identifiants requise");
   }
-  List<UserPosition> positions = utilisateurService.getPositionsByUserIds(body.ids());
+  List<String> allowedIds = authorizationService.filterAllowedUserIds(authentication, body.ids())
+      .stream()
+      .toList();
+  List<UserPosition> positions = utilisateurService.getPositionsByUserIds(allowedIds);
   return ResponseEntity.ok(positions);
 }
 
