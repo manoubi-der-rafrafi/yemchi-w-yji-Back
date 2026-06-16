@@ -128,8 +128,23 @@ public class CommandeService {
             if (details.getTransporteurSecoursId() != null) {
                 commande.setTransporteurSecoursId(details.getTransporteurSecoursId());
             }
+            if (details.getPartenaireId() != null) {
+                commande.setPartenaireId(details.getPartenaireId());
+            }
+            if (details.getExternalBusinessId() != null) {
+                commande.setExternalBusinessId(details.getExternalBusinessId());
+            }
+            if (details.getExternalOrderId() != null) {
+                commande.setExternalOrderId(details.getExternalOrderId());
+            }
             if (details.getIdAmie() != null) {
                 commande.setIdAmie(details.getIdAmie());
+            }
+            if (details.getNomDepart() != null) {
+                commande.setNomDepart(details.getNomDepart());
+            }
+            if (details.getNomArrivee() != null) {
+                commande.setNomArrivee(details.getNomArrivee());
             }
             if (details.getTelArrivee() != null) {
                 commande.setTelArrivee(details.getTelArrivee());

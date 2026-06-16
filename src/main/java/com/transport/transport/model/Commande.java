@@ -62,6 +62,12 @@ public class Commande {
     @JsonAlias({ "transporteur_secours_id", "transporteurSecoursId", "id_transporteur_secours" })
     private String transporteurSecoursId;
 
+    private String partenaireId;
+    private String externalBusinessId;
+    private String externalOrderId;
+    private String nomDepart;
+    private String nomArrivee;
+
     @LastModifiedDate
     private LocalDateTime majLe;
     @JsonAlias({ "id_amie", "idAmie" })
@@ -254,6 +260,21 @@ public enum SousZone {
 
     public String getTransporteurSecoursId() { return transporteurSecoursId; }
     public void setTransporteurSecoursId(String transporteurSecoursId) { this.transporteurSecoursId = transporteurSecoursId; }
+
+    public String getPartenaireId() { return partenaireId; }
+    public void setPartenaireId(String partenaireId) { this.partenaireId = partenaireId; }
+
+    public String getExternalBusinessId() { return externalBusinessId; }
+    public void setExternalBusinessId(String externalBusinessId) { this.externalBusinessId = externalBusinessId; }
+
+    public String getExternalOrderId() { return externalOrderId; }
+    public void setExternalOrderId(String externalOrderId) { this.externalOrderId = externalOrderId; }
+
+    public String getNomDepart() { return nomDepart; }
+    public void setNomDepart(String nomDepart) { this.nomDepart = nomDepart; }
+
+    public String getNomArrivee() { return nomArrivee; }
+    public void setNomArrivee(String nomArrivee) { this.nomArrivee = nomArrivee; }
 
     public LocalDateTime getMajLe() { return majLe; }
     public void setMajLe(LocalDateTime majLe) { this.majLe = majLe; }

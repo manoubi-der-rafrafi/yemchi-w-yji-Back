@@ -67,6 +67,9 @@ public class UpdateLastSeenFilter extends OncePerRequestFilter {
   protected boolean shouldNotFilter(HttpServletRequest request) {
     String p = request.getRequestURI();
     if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
-    return p.startsWith("/auth/") || p.startsWith("/public/") || p.startsWith("/actuator/");
+    return p.startsWith("/auth/")
+        || p.startsWith("/public/")
+        || p.startsWith("/actuator/")
+        || p.startsWith("/api/partner/");
   }
 }

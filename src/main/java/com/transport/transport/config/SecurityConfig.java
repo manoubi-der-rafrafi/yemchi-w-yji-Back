@@ -1,4 +1,4 @@
-// com.transport.transport.config.SecurityConfig
+// com.transport.transport.config
 package com.transport.transport.config;
 
 import java.nio.charset.StandardCharsets;
@@ -38,22 +38,27 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import com.transport.transport.model.Utilisateur;
-import com.transport.transport.repository.UtilisateurRepository;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.transport.transport.model.Utilisateur;
+import com.transport.transport.repository.UtilisateurRepository;
+import com.transport.transport.security.PartnerAuthenticationFilter;
 
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
 
   private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
+
+  @Value("${app.jwt.secret}")
+  private String secret;
 
   @Bean
   GoogleIdTokenVerifier googleVerifier(@Value("${app.google.client-id}") String clientId) {
@@ -62,53 +67,35 @@ public class SecurityConfig {
         .build();
   }
 
-  @Value("${app.jwt.secret}")
-  private String secret;
-
-  /* =========================
-     PasswordEncoder
-     - Delegating : supporte {bcrypt}... ou hash $2a$... sans préfixe
-     ========================= */
   @Bean
-PasswordEncoder passwordEncoder() {
-  String id = "bcrypt";
-  Map<String, PasswordEncoder> encoders = new HashMap<>();
-  encoders.put(id, new BCryptPasswordEncoder());
-  DelegatingPasswordEncoder d = new DelegatingPasswordEncoder(id, encoders);
-  // ⬇️ Permettre les hashes SANS préfixe (ex: $2a$...) lors des matches()
-  d.setDefaultPasswordEncoderForMatches(encoders.get(id));
-  return d;
-}
+  PasswordEncoder passwordEncoder() {
+    String id = "bcrypt";
+    Map<String, PasswordEncoder> encoders = new HashMap<>();
+    encoders.put(id, new BCryptPasswordEncoder());
+    DelegatingPasswordEncoder d = new DelegatingPasswordEncoder(id, encoders);
+    d.setDefaultPasswordEncoderForMatches(encoders.get(id));
+    return d;
+  }
 
-
-  /* =========================
-     UserDetailsService
-     - username = email
-     - disabled si statut != actif
-     - rôle par défaut "CLIENT" si null (sécurité)
-     ========================= */
   @Bean
-UserDetailsService userDetailsService(UtilisateurRepository repo) {
-  return (String username) -> repo.findByEmailIgnoreCase(username)
-    .map(u -> {
-      String role = (u.getRole() != null) ? u.getRole().name() : "CLIENT";
-      role = role.toUpperCase().replaceFirst("^ROLE_", ""); // .roles() ajoute ROLE_
+  UserDetailsService userDetailsService(UtilisateurRepository repo) {
+    return username -> repo.findByEmailIgnoreCase(username)
+        .map(u -> {
+          String role = (u.getRole() != null) ? u.getRole().name() : "CLIENT";
+          role = role.toUpperCase().replaceFirst("^ROLE_", "");
+          boolean disabled = (u.getStatut() == Utilisateur.Statut.banni);
 
-      // Ne désactive que les comptes bannis. "inactif" = présence, pas un blocage d'auth.
-      boolean disabled = (u.getStatut() == Utilisateur.Statut.banni);
-
-      return User.withUsername(u.getEmail())
-          .password(u.getMotDePasse())
-          .roles(role)
-          .accountExpired(false)
-          .accountLocked(false)
-          .credentialsExpired(false)
-          .disabled(disabled)
-          .build();
-    })
-    .orElseThrow(() -> new UsernameNotFoundException("Utilisateur introuvable: " + username));
-}
-
+          return User.withUsername(u.getEmail())
+              .password(u.getMotDePasse())
+              .roles(role)
+              .accountExpired(false)
+              .accountLocked(false)
+              .credentialsExpired(false)
+              .disabled(disabled)
+              .build();
+        })
+        .orElseThrow(() -> new UsernameNotFoundException("Utilisateur introuvable: " + username));
+  }
 
   @Bean
   DaoAuthenticationProvider daoAuthProvider(UserDetailsService uds, PasswordEncoder pe) {
@@ -123,9 +110,6 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
     return cfg.getAuthenticationManager();
   }
 
-  /* =========================
-     JWT signer/decoder (HS256)
-     ========================= */
   @Bean
   JwtEncoder jwtEncoder() {
     SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
@@ -155,98 +139,85 @@ UserDetailsService userDetailsService(UtilisateurRepository repo) {
     return request -> isPublicEndpoint(request) ? null : delegate.resolve(request);
   }
 
-  /* =========================
-     CORS (UNIQUE SOURCE DE VÉRITÉ)
-     - Autorise localhost:4200, 127.0.0.1:4200 et ton front Vercel
-     ========================= */
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cfg = new CorsConfiguration();
-
-    // Autorise Flutter Web en dev (ports variables) + ton domaine de prod
     cfg.setAllowedOriginPatterns(List.of(
         "http://localhost:*",
         "http://127.0.0.1:*",
         "https://yemchi-w-yji-front.vercel.app",
         "https://www.yemchi-w-yji.tn",
-        "http://10.0.2.2:5173"
-    ));
-
-    cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-    cfg.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","X-Requested-With","Origin"));
-    cfg.setExposedHeaders(List.of("Authorization","Location"));
-
-    // Avec JWT en header, pas besoin de cookies → false (plus simple)
-    // Mets true seulement si tu utilises des cookies/sessions côté navigateur.
+        "http://10.0.2.2:5173"));
+    cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+    cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin", "X-API-Key"));
+    cfg.setExposedHeaders(List.of("Authorization", "Location"));
     cfg.setAllowCredentials(false);
-
     cfg.setMaxAge(3600L);
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", cfg);
     return source;
-}
+  }
 
-  /* =========================
-     Security Filter Chain
-     ========================= */
   @Bean
   SecurityFilterChain security(
       HttpSecurity http,
       UpdateLastSeenFilter lastSeenFilter,
+      PartnerAuthenticationFilter partnerAuthenticationFilter,
       JwtAuthenticationConverter jwtAuthenticationConverter,
       BearerTokenResolver bearerTokenResolver) throws Exception {
     http
-      .csrf(csrf -> csrf.disable())
-      .cors(Customizer.withDefaults())
-      .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-      .exceptionHandling(ex -> ex
-          .authenticationEntryPoint((request, response, authException) -> {
-            logger.warn("401 unauthorized method={} uri={} message={}",
-                request.getMethod(),
-                request.getRequestURI(),
-                authException.getMessage());
-            response.sendError(401);
-          })
-          .accessDeniedHandler((request, response, accessDeniedException) -> {
-            var auth = org.springframework.security.core.context.SecurityContextHolder
-                .getContext()
-                .getAuthentication();
-            logger.warn("403 forbidden method={} uri={} principal={} authorities={} message={}",
-                request.getMethod(),
-                request.getRequestURI(),
-                auth != null ? auth.getName() : null,
-                auth != null ? auth.getAuthorities() : null,
-                accessDeniedException.getMessage());
-            response.sendError(403);
-          }))
-      .authorizeHttpRequests(auth -> auth
-          .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-          .requestMatchers("/error").permitAll()
-          .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
-          .requestMatchers(HttpMethod.POST, "/api/utilisateur/login/google").permitAll()
-          .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/email").permitAll()
-          .requestMatchers("/api/utilisateur/register/**").permitAll()
-          .requestMatchers(HttpMethod.GET, "/api/utilisateur/verify-email").permitAll()
-          .requestMatchers(HttpMethod.GET, "/api/utilisateur/email-verification-status").permitAll()
-          .requestMatchers("/auth/**").permitAll()
-          .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").authenticated()
-          .requestMatchers(HttpMethod.GET,  "/api/presence/**").authenticated()
-          .requestMatchers("/api/utilisateur/register").permitAll()
-          .requestMatchers("/api/commandes/**").authenticated()
-          .requestMatchers("/api/demandes/**").authenticated()
-          .requestMatchers("/api/produits/**").authenticated()
-          .anyRequest().authenticated()
-      )
-      .oauth2ResourceServer(oauth2 -> oauth2
-          .bearerTokenResolver(bearerTokenResolver)
-          .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
+        .csrf(csrf -> csrf.disable())
+        .cors(Customizer.withDefaults())
+        .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .exceptionHandling(ex -> ex
+            .authenticationEntryPoint((request, response, authException) -> {
+              logger.warn("401 unauthorized method={} uri={} message={}",
+                  request.getMethod(),
+                  request.getRequestURI(),
+                  authException.getMessage());
+              response.sendError(401);
+            })
+            .accessDeniedHandler((request, response, accessDeniedException) -> {
+              var auth = org.springframework.security.core.context.SecurityContextHolder
+                  .getContext()
+                  .getAuthentication();
+              logger.warn("403 forbidden method={} uri={} principal={} authorities={} message={}",
+                  request.getMethod(),
+                  request.getRequestURI(),
+                  auth != null ? auth.getName() : null,
+                  auth != null ? auth.getAuthorities() : null,
+                  accessDeniedException.getMessage());
+              response.sendError(403);
+            }))
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+            .requestMatchers("/error").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/utilisateur/login/google").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/email").permitAll()
+            .requestMatchers("/api/utilisateur/register/**").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/utilisateur/verify-email").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/utilisateur/email-verification-status").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/internal/partners/provision").permitAll()
+            .requestMatchers("/auth/**").permitAll()
+            .requestMatchers("/api/utilisateur/register").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").authenticated()
+            .requestMatchers(HttpMethod.GET, "/api/presence/**").authenticated()
+            .requestMatchers("/api/admin/partners/**").authenticated()
+            .requestMatchers("/api/partner/**").authenticated()
+            .requestMatchers("/api/commandes/**").authenticated()
+            .requestMatchers("/api/demandes/**").authenticated()
+            .requestMatchers("/api/produits/**").authenticated()
+            .anyRequest().authenticated())
+        .oauth2ResourceServer(oauth2 -> oauth2
+            .bearerTokenResolver(bearerTokenResolver)
+            .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
 
-    // Ne pas perturber l'auth : exécute après que le SecurityContext soit établi
+    http.addFilterBefore(partnerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
     http.addFilterAfter(
-      lastSeenFilter,
-      org.springframework.security.web.context.SecurityContextHolderFilter.class
-    );
+        lastSeenFilter,
+        org.springframework.security.web.context.SecurityContextHolderFilter.class);
 
     return http.build();
   }

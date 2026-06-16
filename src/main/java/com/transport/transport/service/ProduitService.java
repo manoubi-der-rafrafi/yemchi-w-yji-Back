@@ -29,6 +29,13 @@ public class ProduitService {
         return produitRepository.save(produit);
     }
 
+    public List<Produit> createProduits(List<Produit> produits) {
+        if (produits == null || produits.isEmpty()) {
+            return List.of();
+        }
+        return produitRepository.saveAll(produits);
+    }
+
     // Mettre à jour un produit existant
     public Produit updateProduit(String  id, Produit produitDetails) {
         Optional<Produit> optionalProduit = produitRepository.findById(id);
