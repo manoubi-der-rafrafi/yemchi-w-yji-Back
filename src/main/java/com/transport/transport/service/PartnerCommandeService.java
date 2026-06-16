@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -28,14 +29,18 @@ public class PartnerCommandeService {
     private final CommandeRepository commandeRepository;
     private final ProduitService produitService;
     private final UtilisateurRepository utilisateurRepository;
+    private final VehicleAnalysisService vehicleAnalysisService;
 
+    @Autowired
     public PartnerCommandeService(
             CommandeRepository commandeRepository,
             ProduitService produitService,
-            UtilisateurRepository utilisateurRepository) {
+            UtilisateurRepository utilisateurRepository,
+            VehicleAnalysisService vehicleAnalysisService) {
         this.commandeRepository = commandeRepository;
         this.produitService = produitService;
         this.utilisateurRepository = utilisateurRepository;
+        this.vehicleAnalysisService = vehicleAnalysisService;
     }
 
     public PartnerCommandeResponse createConfirmedCommande(
@@ -68,7 +73,7 @@ public class PartnerCommandeService {
         commande.setStatut(Commande.Statut.confirmer);
         commande.setDateConfirmer(LocalDateTime.now());
         commande.setDateDemande(LocalDateTime.now());
-        commande.setVehicule(request.vehicule() != null ? request.vehicule() : estimateVehicule(request.produits()));
+        commande.setVehicule(vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits()));
 
         Commande savedCommande = commandeRepository.save(commande);
 

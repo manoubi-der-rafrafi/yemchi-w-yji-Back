@@ -42,14 +42,17 @@ public class CommandeService {
     private final CommandeRepository commandeRepository;
     private final ProduitRepository produitRepository;
     private final UtilisateurRepository utilisateurRepository;
+    private final VehicleAnalysisService vehicleAnalysisService;
 
     public CommandeService(
             CommandeRepository commandeRepository,
             ProduitRepository produitRepository,
-            UtilisateurRepository utilisateurRepository) {
+            UtilisateurRepository utilisateurRepository,
+            VehicleAnalysisService vehicleAnalysisService) {
         this.commandeRepository = commandeRepository;
         this.produitRepository = produitRepository;
         this.utilisateurRepository = utilisateurRepository;
+        this.vehicleAnalysisService = vehicleAnalysisService;
     }
 
     // Historique simple d'un client
@@ -97,6 +100,7 @@ public class CommandeService {
                 if (details.getStatut() == Statut.confirmer
                         && commande.getStatut() != Statut.confirmer) {
                     commande.setDateConfirmer(LocalDateTime.now());
+                    commande.setVehicule(resolveVehicleForCommande(commande));
                 }
                 commande.setStatut(details.getStatut());
             }
@@ -191,9 +195,6 @@ public class CommandeService {
             }
             if (details.getRelaisTransporteurEffectue() != null) {
                 commande.setRelaisTransporteurEffectue(details.getRelaisTransporteurEffectue());
-            }
-            if (details.getVehicule() != null) {
-                commande.setVehicule(details.getVehicule());
             }
             // --- Met a jour la date de modification automatique ---
             commande.setMajLe(LocalDateTime.now());
@@ -298,8 +299,14 @@ public class CommandeService {
         return commandeRepository.findById(id).map(commande -> {
             commande.setStatut(Commande.Statut.confirmer);
             commande.setDateConfirmer(LocalDateTime.now()); // date de confirmation
+            commande.setVehicule(resolveVehicleForCommande(commande));
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+    }
+
+    private TypeVehicule resolveVehicleForCommande(Commande commande) {
+        List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
+        return vehicleAnalysisService.resolveVehicleForProduits(produits);
     }
     public List<Commande> getByIdAmie(String idAmie) {
         return commandeRepository.findByIdAmie(idAmie);

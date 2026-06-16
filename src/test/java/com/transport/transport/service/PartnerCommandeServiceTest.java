@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import com.transport.transport.dto.partner.PartnerCreateCommandeRequest;
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Produit;
+import com.transport.transport.model.TypeVehicule;
 import com.transport.transport.repository.CommandeRepository;
 import com.transport.transport.repository.UtilisateurRepository;
 import com.transport.transport.security.PartnerPrincipal;
@@ -24,6 +25,7 @@ class PartnerCommandeServiceTest {
     private CommandeRepository commandeRepository;
     private ProduitService produitService;
     private UtilisateurRepository utilisateurRepository;
+    private VehicleAnalysisService vehicleAnalysisService;
     private PartnerCommandeService service;
 
     @BeforeEach
@@ -31,7 +33,12 @@ class PartnerCommandeServiceTest {
         commandeRepository = org.mockito.Mockito.mock(CommandeRepository.class);
         produitService = org.mockito.Mockito.mock(ProduitService.class);
         utilisateurRepository = org.mockito.Mockito.mock(UtilisateurRepository.class);
-        service = new PartnerCommandeService(commandeRepository, produitService, utilisateurRepository);
+        vehicleAnalysisService = org.mockito.Mockito.mock(VehicleAnalysisService.class);
+        service = new PartnerCommandeService(
+                commandeRepository,
+                produitService,
+                utilisateurRepository,
+                vehicleAnalysisService);
     }
 
     @Test
@@ -72,6 +79,8 @@ class PartnerCommandeServiceTest {
             return commande;
         });
         when(produitService.createProduits(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(vehicleAnalysisService.resolveVehicleForPartnerProducts(any()))
+                .thenReturn(TypeVehicule.VEHICULE_PARTICULIER);
 
         var response = service.createConfirmedCommande(principal, request);
 
