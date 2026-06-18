@@ -321,7 +321,7 @@ public static record LoginRequest(String email, String motDePasse) {}
           existing.setMotDePasse(null);
           return ResponseEntity.ok()
               .headers(traceHeaders(traceId, null))
-              .body(Map.of("user", existing, "verificationUrl", url));
+              .body(Map.of("user", existing));
         })
         .orElseGet(() -> {
           Utilisateur created = utilisateurService.createUserWithEmail(email);
@@ -339,7 +339,7 @@ public static record LoginRequest(String email, String motDePasse) {}
           created.setMotDePasse(null);
           return ResponseEntity.status(HttpStatus.CREATED)
               .headers(traceHeaders(traceId, null))
-              .body(Map.of("user", created, "verificationUrl", url));
+              .body(Map.of("user", created));
         });
     } catch (MailDeliveryException e) {
       return buildMailFailureResponse(
@@ -420,9 +420,7 @@ public static record LoginRequest(String email, String motDePasse) {}
     payload.setMotDePasse(passwordEncoder.encode(payload.getMotDePasse()));
     payload.setStatut(Utilisateur.Statut.actif);
     payload.setRole(Utilisateur.Role.client);
-    if (payload.getIsEmailVerified() == null) {
-      payload.setIsEmailVerified(false);
-    }
+    payload.setIsEmailVerified(false);
     if (payload.getDateCreation() == null) {
       payload.setDateCreation(Instant.now().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
     }
