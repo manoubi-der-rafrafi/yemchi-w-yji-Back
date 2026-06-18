@@ -20,7 +20,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -154,15 +153,9 @@ public class UtilisateurController {
         }
         user = utilisateurService.saveUtilisateur(user);
 
-        if (user.getStatut() == Utilisateur.Statut.banni) {
-          return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Compte banni");
-        }
-        if (!isSignupComplete(user)) {
-          user.setMotDePasse(null);
-          return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-              "error", "Inscription incomplete",
-              "errorCode", "GOOGLE_SIGNUP_INCOMPLETE",
-              "user", user));
+        ResponseEntity<?> blocked = validateCompletedSignup(user, "GOOGLE_SIGNUP_INCOMPLETE");
+        if (blocked != null) {
+          return blocked;
         }
 
         return ResponseEntity.ok(buildLoginResponse(user));
@@ -178,7 +171,7 @@ public class UtilisateurController {
   public ResponseEntity<?> login(@RequestBody LoginRequest req) {
     try {
       // 1) Authentifier via AuthenticationManager (utilise BCrypt de ta SecurityConfig)
-      Authentication auth = authManager.authenticate(
+      authManager.authenticate(
           new UsernamePasswordAuthenticationToken(req.email(), req.motDePasse())
       );
 
@@ -188,30 +181,11 @@ public class UtilisateurController {
       if (user == null) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
       }
-      if (user.getDateCreation() == null) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Inscription incomplÈte");
+      ResponseEntity<?> blocked = validateCompletedSignup(user, "SIGNUP_INCOMPLETE");
+      if (blocked != null) {
+        return blocked;
       }
-
-      // 3) Construire un JWT
-      Instant now = Instant.now();
-      long expiry = 604800; // 1h
-      var claims = JwtClaimsSet.builder()
-          .issuer("transport")
-          .issuedAt(now)
-          .expiresAt(now.plusSeconds(expiry))
-          .subject(req.email())
-          .claim("uid", user.getId())
-          .claim("roles", auth.getAuthorities().stream()
-              .map(GrantedAuthority::getAuthority).toList())
-          .build();
-
-      var header = JwsHeader.with(MacAlgorithm.HS256).build();
-      String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
-
-      // 4) Ne jamais exposer le mot de passe
-      user.setMotDePasse(null);
-
-      return ResponseEntity.ok(new LoginResponse(token, user));
+      return ResponseEntity.ok(buildLoginResponse(user));
     } catch (BadCredentialsException e) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
     }
@@ -415,6 +389,19 @@ public static record LoginRequest(String email, String motDePasse) {}
         && user.getTelephone() != null && !user.getTelephone().isBlank()
         && user.getDateNaissance() != null
         && user.getMotDePasse() != null && !user.getMotDePasse().isBlank();
+  }
+  private ResponseEntity<?> validateCompletedSignup(Utilisateur user, String errorCode) {
+    if (user.getStatut() == Utilisateur.Statut.banni) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Compte banni");
+    }
+    if (!isSignupComplete(user)) {
+      user.setMotDePasse(null);
+      return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+          "error", "Inscription incomplete",
+          "errorCode", errorCode,
+          "user", user));
+    }
+    return null;
   }
   private Utilisateur createCompleteUser(Utilisateur payload) {
     payload.setMotDePasse(passwordEncoder.encode(payload.getMotDePasse()));
