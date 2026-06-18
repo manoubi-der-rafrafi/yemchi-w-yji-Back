@@ -97,26 +97,34 @@ public class UtilisateurController {
     }
 
 
-    @PostMapping("/login/google")
+        @PostMapping("/login/google")
     public ResponseEntity<?> loginWithGoogle(@RequestBody GoogleLoginRequest req) {
       String tokenFromRequest = (req != null) ? req.resolvedToken() : null;
       if (tokenFromRequest == null || tokenFromRequest.isBlank()) {
-        return ResponseEntity.badRequest().body("Token Google manquant");
+        return ResponseEntity.badRequest().body(Map.of(
+            "error", "Token Google manquant",
+            "errorCode", "GOOGLE_TOKEN_MISSING"));
       }
 
       try {
         GoogleIdToken idToken = googleVerifier.verify(tokenFromRequest);
         if (idToken == null) {
-          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Token Google invalide");
+          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+              "error", "Token Google invalide",
+              "errorCode", "GOOGLE_TOKEN_INVALID"));
         }
 
         Payload payload = idToken.getPayload();
         String email = payload.getEmail();
         if (email == null) {
-          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email Google manquante");
+          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+              "error", "Email Google manquante",
+              "errorCode", "GOOGLE_EMAIL_MISSING"));
         }
         if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
-          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email Google non vérifiée");
+          return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+              "error", "Email Google non verifiee",
+              "errorCode", "GOOGLE_EMAIL_NOT_VERIFIED"));
         }
 
         Utilisateur user = utilisateurRepository.findByEmailIgnoreCase(email)
@@ -128,42 +136,44 @@ public class UtilisateurController {
               u.setImage((String) payload.get("picture"));
               u.setRole(Utilisateur.Role.client);
               u.setStatut(Utilisateur.Statut.actif);
+              u.setIsEmailVerified(true);
               return utilisateurService.saveUtilisateur(u);
             });
+
+        if (!Boolean.TRUE.equals(user.getIsEmailVerified())) {
+          user.setIsEmailVerified(true);
+        }
+        if ((user.getPrenom() == null || user.getPrenom().isBlank()) && payload.get("given_name") instanceof String givenName) {
+          user.setPrenom(givenName);
+        }
+        if ((user.getNom() == null || user.getNom().isBlank()) && payload.get("family_name") instanceof String familyName) {
+          user.setNom(familyName);
+        }
+        if ((user.getImage() == null || user.getImage().isBlank()) && payload.get("picture") instanceof String picture) {
+          user.setImage(picture);
+        }
+        user = utilisateurService.saveUtilisateur(user);
 
         if (user.getStatut() == Utilisateur.Statut.banni) {
           return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Compte banni");
         }
-        if (user.getDateCreation() == null) {
-          return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Inscription incomplÈte");
+        if (!isSignupComplete(user)) {
+          user.setMotDePasse(null);
+          return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+              "error", "Inscription incomplete",
+              "errorCode", "GOOGLE_SIGNUP_INCOMPLETE",
+              "user", user));
         }
 
-        String role = (user.getRole() != null) ? user.getRole().name() : "CLIENT";
-
-        Instant now = Instant.now();
-        long expiry = 604800; // 7 jours
-        var claims = JwtClaimsSet.builder()
-            .issuer("transport")
-            .issuedAt(now)
-            .expiresAt(now.plusSeconds(expiry))
-            .subject(email)
-            .claim("uid", user.getId())
-            .claim("roles", List.of("ROLE_" + role.toUpperCase()))
-            .build();
-
-        var header = JwsHeader.with(MacAlgorithm.HS256).build();
-        String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
-
-        user.setMotDePasse(null);
-
-        return ResponseEntity.ok(new LoginResponse(token, user));
+        return ResponseEntity.ok(buildLoginResponse(user));
       } catch (Exception e) {
         e.printStackTrace();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-            .body("Erreur login Google: " + e.getMessage());
+            .body(Map.of(
+                "error", "Erreur login Google: " + e.getMessage(),
+                "errorCode", "GOOGLE_LOGIN_ERROR"));
       }
     }
-
     @PostMapping("/login")
   public ResponseEntity<?> login(@RequestBody LoginRequest req) {
     try {
@@ -234,47 +244,34 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
 
     
-  @PostMapping("/register")
+    @PostMapping("/register")
   public ResponseEntity<?> register(@RequestBody Utilisateur payload) {
-    // Email unique ?
-    if (utilisateurRepository.findByEmailIgnoreCase(payload.getEmail()).isPresent()) {
-      return ResponseEntity.status(HttpStatus.CONFLICT).body("Email déjà utilisé");
+    if (payload.getEmail() == null || payload.getEmail().isBlank()) {
+      return ResponseEntity.badRequest().body("Email requis");
     }
 
-    // Encoder le mot de passe
     if (payload.getMotDePasse() == null || payload.getMotDePasse().isBlank()) {
       return ResponseEntity.badRequest().body("Mot de passe requis");
     }
-    payload.setMotDePasse(passwordEncoder.encode(payload.getMotDePasse()));
 
-    // Valeurs par défaut (statut/role), gérées aussi par UtilisateurService.saveUtilisateur(...)
-    payload.setStatut(Utilisateur.Statut.actif);
-    payload.setRole(Utilisateur.Role.client);
-    payload.setIsEmailVerified(false);
-    if (payload.getDateCreation() == null) {
-      payload.setDateCreation(Instant.now().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
+    try {
+      Utilisateur saved = utilisateurRepository.findByEmailIgnoreCase(payload.getEmail())
+          .map(existing -> {
+            if (isSignupComplete(existing)) {
+              throw new ResponseStatusException(HttpStatus.CONFLICT, "Email deja utilise");
+            }
+            if (!Boolean.TRUE.equals(existing.getIsEmailVerified())) {
+              throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Email non verifie");
+            }
+            return completePendingSignup(existing, payload);
+          })
+          .orElseGet(() -> createCompleteUser(payload));
+
+      return ResponseEntity.status(HttpStatus.CREATED).body(buildLoginResponse(saved));
+    } catch (ResponseStatusException e) {
+      return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
     }
-
-    Utilisateur saved = utilisateurRepository.save(payload);
-
-    // Générer un token pour auto-login (facultatif)
-    Instant now = Instant.now();
-    long expiry = 604800;
-    var claims = JwtClaimsSet.builder()
-        .issuer("transport")
-        .issuedAt(now)
-        .expiresAt(now.plusSeconds(expiry))
-        .subject(saved.getEmail())
-        .claim("uid", saved.getId())
-        .claim("roles", List.of("ROLE_" + saved.getRole().name().toUpperCase()))
-        .build();
-    var header = JwsHeader.with(MacAlgorithm.HS256).build();
-    String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
-
-    saved.setMotDePasse(null);
-    return ResponseEntity.status(HttpStatus.CREATED).body(new LoginResponse(token, saved));
   }
-
   @PostMapping("/register/email")
   public ResponseEntity<?> createWithEmailOnly(@RequestBody Map<String, String> body) {
     String traceId = UUID.randomUUID().toString();
@@ -324,7 +321,7 @@ public static record LoginRequest(String email, String motDePasse) {}
           existing.setMotDePasse(null);
           return ResponseEntity.ok()
               .headers(traceHeaders(traceId, null))
-              .body(Map.of("user", existing));
+              .body(Map.of("user", existing, "verificationUrl", url));
         })
         .orElseGet(() -> {
           Utilisateur created = utilisateurService.createUserWithEmail(email);
@@ -342,7 +339,7 @@ public static record LoginRequest(String email, String motDePasse) {}
           created.setMotDePasse(null);
           return ResponseEntity.status(HttpStatus.CREATED)
               .headers(traceHeaders(traceId, null))
-              .body(Map.of("user", created));
+              .body(Map.of("user", created, "verificationUrl", url));
         });
     } catch (MailDeliveryException e) {
       return buildMailFailureResponse(
@@ -409,6 +406,58 @@ public static record LoginRequest(String email, String motDePasse) {}
           return ResponseEntity.ok(u);
         })
         .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouve"));
+  }
+  private boolean isSignupComplete(Utilisateur user) {
+    return user.getDateCreation() != null
+        && user.getNom() != null && !user.getNom().isBlank()
+        && user.getPrenom() != null && !user.getPrenom().isBlank()
+        && user.getAdresse() != null && !user.getAdresse().isBlank()
+        && user.getTelephone() != null && !user.getTelephone().isBlank()
+        && user.getDateNaissance() != null
+        && user.getMotDePasse() != null && !user.getMotDePasse().isBlank();
+  }
+  private Utilisateur createCompleteUser(Utilisateur payload) {
+    payload.setMotDePasse(passwordEncoder.encode(payload.getMotDePasse()));
+    payload.setStatut(Utilisateur.Statut.actif);
+    payload.setRole(Utilisateur.Role.client);
+    if (payload.getIsEmailVerified() == null) {
+      payload.setIsEmailVerified(false);
+    }
+    if (payload.getDateCreation() == null) {
+      payload.setDateCreation(Instant.now().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
+    }
+    return utilisateurRepository.save(payload);
+  }
+  private Utilisateur completePendingSignup(Utilisateur existing, Utilisateur payload) {
+    existing.setNom(payload.getNom());
+    existing.setPrenom(payload.getPrenom());
+    existing.setAdresse(payload.getAdresse());
+    existing.setTelephone(payload.getTelephone());
+    existing.setPhoneCountryCode(payload.getPhoneCountryCode());
+    existing.setPhoneDialCode(payload.getPhoneDialCode());
+    existing.setDateNaissance(payload.getDateNaissance());
+    existing.setMotDePasse(passwordEncoder.encode(payload.getMotDePasse()));
+    existing.setStatut(Utilisateur.Statut.actif);
+    existing.setRole(Utilisateur.Role.client);
+    existing.setDateCreation(Instant.now().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
+    return utilisateurRepository.save(existing);
+  }
+  private LoginResponse buildLoginResponse(Utilisateur user) {
+    String role = (user.getRole() != null) ? user.getRole().name() : "CLIENT";
+    Instant now = Instant.now();
+    long expiry = 604800;
+    var claims = JwtClaimsSet.builder()
+        .issuer("transport")
+        .issuedAt(now)
+        .expiresAt(now.plusSeconds(expiry))
+        .subject(user.getEmail())
+        .claim("uid", user.getId())
+        .claim("roles", List.of("ROLE_" + role.toUpperCase()))
+        .build();
+    var header = JwsHeader.with(MacAlgorithm.HS256).build();
+    String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    user.setMotDePasse(null);
+    return new LoginResponse(token, user);
   }
 
   private String buildVerificationToken(Utilisateur user) {
@@ -965,3 +1014,6 @@ public ResponseEntity<List<TransporteurPanneCommandesResponse>> getTransporteurs
 
 
 }
+
+
+
