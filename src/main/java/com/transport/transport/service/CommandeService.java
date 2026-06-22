@@ -453,6 +453,14 @@ public class CommandeService {
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
 
+    public Commande prepareCommandeVehicle(String id) {
+        return commandeRepository.findById(id).map(commande -> {
+            commande.setVehicule(resolveVehicleForCommande(commande));
+            commande.setMajLe(LocalDateTime.now());
+            return commandeRepository.save(commande);
+        }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+    }
+
     private TypeVehicule resolveVehicleForCommande(Commande commande) {
         List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
         return vehicleAnalysisService.resolveVehicleForProduits(produits);

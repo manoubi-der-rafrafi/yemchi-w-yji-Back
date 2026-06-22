@@ -232,6 +232,18 @@ public class CommandeController {
             return ResponseEntity.notFound().build();
         }
     }
+
+    @PutMapping("/{id}/prepare-vehicle")
+    public ResponseEntity<Commande> prepareCommandeVehicle(@PathVariable String id, Authentication authentication) {
+        try {
+            commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
+            Commande commande = commandeService.prepareCommandeVehicle(id);
+            return ResponseEntity.ok(commande);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
     @GetMapping("/{id}/transporteurs-min-commandes")
     public ResponseEntity<List<String>> getTransporteursMinCommandes(@PathVariable String id) {
         try {
