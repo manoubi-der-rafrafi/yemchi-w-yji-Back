@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.math.RoundingMode;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,9 +85,9 @@ public class VehicleAnalysisService {
         if (externalVehicle != null) {
             return externalVehicle;
         }
-        throw new ResponseStatusException(
-                HttpStatus.BAD_GATEWAY,
-                "Impossible de determiner le vehicule via l'API externe.");
+        TypeVehicule fallbackVehicle = estimateVehicleLocally(items);
+        logger.info("Vehicle analysis fallback selected vehicle={}", fallbackVehicle);
+        return fallbackVehicle;
     }
 
     private TypeVehicule analyzeVehicleExternally(List<VehicleItem> items) {
@@ -369,6 +370,46 @@ public class VehicleAnalysisService {
         }
 
         return null;
+    }
+
+    private TypeVehicule estimateVehicleLocally(List<VehicleItem> items) {
+        BigDecimal totalPoids = BigDecimal.ZERO;
+        BigDecimal totalVolume = BigDecimal.ZERO;
+
+        for (VehicleItem item : items == null ? List.<VehicleItem>of() : items) {
+            int quantite = item.quantite() != null && item.quantite() > 0 ? item.quantite() : 1;
+
+            if (item.poids() != null) {
+                totalPoids = totalPoids.add(item.poids().multiply(BigDecimal.valueOf(quantite)));
+            }
+
+            if (item.largeur() != null && item.profondeur() != null && item.hauteur() != null) {
+                BigDecimal volume = item.largeur()
+                        .multiply(item.profondeur())
+                        .multiply(item.hauteur())
+                        .multiply(BigDecimal.valueOf(quantite))
+                        .divide(BigDecimal.valueOf(1_000_000), 3, RoundingMode.HALF_UP);
+                totalVolume = totalVolume.add(volume);
+            }
+        }
+
+        if (lte(totalPoids, "15") && lte(totalVolume, "0.125")) {
+            return TypeVehicule.DEUX_ROUES_MOTORISES;
+        }
+        if (lte(totalPoids, "80") && lte(totalVolume, "1.000")) {
+            return TypeVehicule.VEHICULE_PARTICULIER;
+        }
+        if (lte(totalPoids, "300") && lte(totalVolume, "3.000")) {
+            return TypeVehicule.VEHICULE_UTILITAIRE_LEGER;
+        }
+        if (lte(totalPoids, "800") && lte(totalVolume, "8.000")) {
+            return TypeVehicule.FOURGON_MINIBUS;
+        }
+        return TypeVehicule.GROS_UTILITAIRE;
+    }
+
+    private boolean lte(BigDecimal value, String limit) {
+        return value.compareTo(new BigDecimal(limit)) <= 0;
     }
 
     private record VehicleItem(
