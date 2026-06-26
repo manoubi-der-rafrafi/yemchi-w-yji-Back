@@ -3,11 +3,14 @@ package com.transport.transport.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -392,7 +395,226 @@ public class CommandeService {
         commandeRepository.deleteById(id);
     }
     public Optional<Commande> getCommandeEnCoursByClientId(String  idClient) {
-        return commandeRepository.findByClientIdAndStatut(idClient, Commande.Statut.en_cours);
+        List<Commande> commandes = commandeRepository.findByClientIdAndStatutOrderByDateDemandeDesc(
+                idClient,
+                Commande.Statut.en_cours);
+        if (commandes.isEmpty()) {
+            return Optional.empty();
+        }
+        if (commandes.size() == 1) {
+            return Optional.of(commandes.get(0));
+        }
+
+        logger.warn(
+                "Detected {} commandes en_cours for client {}. Rebuilding a single commande.",
+                commandes.size(),
+                idClient);
+        return Optional.of(rebuildSingleCommandeEnCours(idClient, commandes));
+    }
+
+    private Commande rebuildSingleCommandeEnCours(String idClient, List<Commande> commandesEnCours) {
+        List<Commande> sortedCommandes = new ArrayList<>(commandesEnCours);
+        sortedCommandes.sort(Comparator.comparing(
+                this::commandeSortDate,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+
+        Commande commandeReference = sortedCommandes.get(0);
+        Commande rebuiltCommande = new Commande();
+        copyCommandeFields(commandeReference, rebuiltCommande);
+        for (int i = 1; i < sortedCommandes.size(); i++) {
+            mergeCommandeFields(sortedCommandes.get(i), rebuiltCommande);
+        }
+
+        rebuiltCommande.setId(null);
+        rebuiltCommande.setClientId(idClient);
+        rebuiltCommande.setStatut(Commande.Statut.en_cours);
+        rebuiltCommande.setDateDemande(
+                Objects.requireNonNullElse(commandeReference.getDateDemande(), LocalDateTime.now()));
+        rebuiltCommande.setMajLe(LocalDateTime.now());
+        enrichCommandeGeography(rebuiltCommande);
+
+        Commande savedCommande = commandeRepository.save(rebuiltCommande);
+
+        List<Produit> produits = produitRepository.findByCommandeIdIn(
+                sortedCommandes.stream().map(Commande::getId).toList());
+        if (!produits.isEmpty()) {
+            for (Produit produit : produits) {
+                produit.setCommandeId(savedCommande.getId());
+            }
+            produitRepository.saveAll(produits);
+        }
+
+        commandeRepository.deleteAll(sortedCommandes);
+        return savedCommande;
+    }
+
+    private LocalDateTime commandeSortDate(Commande commande) {
+        if (commande == null) {
+            return null;
+        }
+        if (commande.getMajLe() != null) {
+            return commande.getMajLe();
+        }
+        if (commande.getDateDemande() != null) {
+            return commande.getDateDemande();
+        }
+        return commande.getDateConfirmer();
+    }
+
+    private void copyCommandeFields(Commande source, Commande target) {
+        if (source == null || target == null) {
+            return;
+        }
+        target.setLocalisationDepart(source.getLocalisationDepart());
+        target.setDestination(source.getDestination());
+        target.setDateDebut(source.getDateDebut());
+        target.setDateFin(source.getDateFin());
+        target.setDateDemande(source.getDateDemande());
+        target.setDateConfirmer(source.getDateConfirmer());
+        target.setStatut(source.getStatut());
+        target.setPrix(source.getPrix());
+        target.setPoids(source.getPoids());
+        target.setVolume(source.getVolume());
+        target.setVehicule(source.getVehicule());
+        target.setModePaiement(source.getModePaiement());
+        target.setInstructions(source.getInstructions());
+        target.setTelDepart(source.getTelDepart());
+        target.setTelArrivee(source.getTelArrivee());
+        target.setClientId(source.getClientId());
+        target.setTransporteurId(source.getTransporteurId());
+        target.setTransporteurSecoursId(source.getTransporteurSecoursId());
+        target.setPartenaireId(source.getPartenaireId());
+        target.setExternalBusinessId(source.getExternalBusinessId());
+        target.setExternalOrderId(source.getExternalOrderId());
+        target.setNomDepart(source.getNomDepart());
+        target.setNomArrivee(source.getNomArrivee());
+        target.setMajLe(source.getMajLe());
+        target.setIdAmie(source.getIdAmie());
+        target.setLatitudeDepart(source.getLatitudeDepart());
+        target.setLongitudeDepart(source.getLongitudeDepart());
+        target.setLatitudeDestination(source.getLatitudeDestination());
+        target.setLongitudeDestination(source.getLongitudeDestination());
+        target.setDistanceKm(source.getDistanceKm());
+        target.setSousZoneDepart(source.getSousZoneDepart());
+        target.setSousZoneArrivee(source.getSousZoneArrivee());
+        target.setZonePrincipaleDepart(source.getZonePrincipaleDepart());
+        target.setZonePrincipaleArrivee(source.getZonePrincipaleArrivee());
+        target.setQrCodeDepartScanne(source.isQrCodeDepartScanne());
+        target.setDateScanDepart(source.getDateScanDepart());
+        target.setQrCodeReceptionScanne(source.isQrCodeReceptionScanne());
+        target.setDateScanReception(source.getDateScanReception());
+        target.setRelaisTransporteurEffectue(source.getRelaisTransporteurEffectue());
+    }
+
+    private void mergeCommandeFields(Commande source, Commande target) {
+        if (source == null || target == null) {
+            return;
+        }
+        if (isBlank(target.getLocalisationDepart())) {
+            target.setLocalisationDepart(source.getLocalisationDepart());
+        }
+        if (isBlank(target.getDestination())) {
+            target.setDestination(source.getDestination());
+        }
+        if (target.getDateDebut() == null) {
+            target.setDateDebut(source.getDateDebut());
+        }
+        if (target.getDateFin() == null) {
+            target.setDateFin(source.getDateFin());
+        }
+        if (target.getDateDemande() == null) {
+            target.setDateDemande(source.getDateDemande());
+        }
+        if (target.getDateConfirmer() == null) {
+            target.setDateConfirmer(source.getDateConfirmer());
+        }
+        if (target.getPrix() == null) {
+            target.setPrix(source.getPrix());
+        }
+        if (target.getPoids() == null) {
+            target.setPoids(source.getPoids());
+        }
+        if (target.getVolume() == null) {
+            target.setVolume(source.getVolume());
+        }
+        if (target.getVehicule() == null) {
+            target.setVehicule(source.getVehicule());
+        }
+        if (target.getModePaiement() == null) {
+            target.setModePaiement(source.getModePaiement());
+        }
+        if (isBlank(target.getInstructions())) {
+            target.setInstructions(source.getInstructions());
+        }
+        if (isBlank(target.getTelDepart())) {
+            target.setTelDepart(source.getTelDepart());
+        }
+        if (isBlank(target.getTelArrivee())) {
+            target.setTelArrivee(source.getTelArrivee());
+        }
+        if (isBlank(target.getTransporteurId())) {
+            target.setTransporteurId(source.getTransporteurId());
+        }
+        if (isBlank(target.getTransporteurSecoursId())) {
+            target.setTransporteurSecoursId(source.getTransporteurSecoursId());
+        }
+        if (isBlank(target.getPartenaireId())) {
+            target.setPartenaireId(source.getPartenaireId());
+        }
+        if (isBlank(target.getExternalBusinessId())) {
+            target.setExternalBusinessId(source.getExternalBusinessId());
+        }
+        if (isBlank(target.getExternalOrderId())) {
+            target.setExternalOrderId(source.getExternalOrderId());
+        }
+        if (isBlank(target.getNomDepart())) {
+            target.setNomDepart(source.getNomDepart());
+        }
+        if (isBlank(target.getNomArrivee())) {
+            target.setNomArrivee(source.getNomArrivee());
+        }
+        if (isBlank(target.getIdAmie())) {
+            target.setIdAmie(source.getIdAmie());
+        }
+        if (target.getLatitudeDepart() == null) {
+            target.setLatitudeDepart(source.getLatitudeDepart());
+        }
+        if (target.getLongitudeDepart() == null) {
+            target.setLongitudeDepart(source.getLongitudeDepart());
+        }
+        if (target.getLatitudeDestination() == null) {
+            target.setLatitudeDestination(source.getLatitudeDestination());
+        }
+        if (target.getLongitudeDestination() == null) {
+            target.setLongitudeDestination(source.getLongitudeDestination());
+        }
+        if (target.getDistanceKm() == null) {
+            target.setDistanceKm(source.getDistanceKm());
+        }
+        if (target.getSousZoneDepart() == null) {
+            target.setSousZoneDepart(source.getSousZoneDepart());
+        }
+        if (target.getSousZoneArrivee() == null) {
+            target.setSousZoneArrivee(source.getSousZoneArrivee());
+        }
+        if (target.getZonePrincipaleDepart() == null) {
+            target.setZonePrincipaleDepart(source.getZonePrincipaleDepart());
+        }
+        if (target.getZonePrincipaleArrivee() == null) {
+            target.setZonePrincipaleArrivee(source.getZonePrincipaleArrivee());
+        }
+        if (!target.isQrCodeDepartScanne() && source.isQrCodeDepartScanne()) {
+            target.setQrCodeDepartScanne(true);
+            target.setDateScanDepart(source.getDateScanDepart());
+        }
+        if (!target.isQrCodeReceptionScanne() && source.isQrCodeReceptionScanne()) {
+            target.setQrCodeReceptionScanne(true);
+            target.setDateScanReception(source.getDateScanReception());
+        }
+        if ((target.getRelaisTransporteurEffectue() == null || !target.getRelaisTransporteurEffectue())
+                && Boolean.TRUE.equals(source.getRelaisTransporteurEffectue())) {
+            target.setRelaisTransporteurEffectue(true);
+        }
     }
 
     public List<com.transport.transport.controller.CommandeController.CommandeProduitsTransporteurResponse>
