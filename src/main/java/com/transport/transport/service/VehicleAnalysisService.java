@@ -91,12 +91,11 @@ public class VehicleAnalysisService {
     }
 
     private TypeVehicule analyzeVehicleExternally(List<VehicleItem> items) {
-        if (vehicleAnalysisUrl.isBlank() || items == null || items.isEmpty()) {
-            notifyVehicleAnalysisFailure(
-                    "Configuration manquante pour l'analyse vehicule",
-                    null,
-                    items,
-                    null);
+        if (items == null || items.isEmpty()) {
+            return null;
+        }
+
+        if (vehicleAnalysisUrl.isBlank()) {
             return null;
         }
 
