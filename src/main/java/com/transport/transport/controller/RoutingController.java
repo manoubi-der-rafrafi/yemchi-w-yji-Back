@@ -8,6 +8,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -73,6 +75,39 @@ public class RoutingController {
     }
   }
 
+  @PostMapping("/geometry")
+  public ResponseEntity<RouteGeometryResponse> getRouteGeometry(@RequestBody RouteDistanceRequest request) {
+    if (orsApiKey == null || orsApiKey.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Service de routage non configure");
+    }
+    validateCoordinates(request);
+
+    URI uri = URI.create(ORS_DIRECTIONS_URI + "?start="
+        + encode(request.lon1() + "," + request.lat1())
+        + "&end="
+        + encode(request.lon2() + "," + request.lat2()));
+
+    HttpRequest orsRequest = HttpRequest.newBuilder(uri)
+        .timeout(Duration.ofSeconds(30))
+        .header("Authorization", orsApiKey)
+        .header("Accept", "application/json")
+        .GET()
+        .build();
+
+    try {
+      HttpResponse<String> response = httpClient.send(orsRequest, HttpResponse.BodyHandlers.ofString());
+      if (response.statusCode() >= 400) {
+        throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Service de routage indisponible");
+      }
+      return ResponseEntity.ok(parseRouteGeometry(response.body()));
+    } catch (IOException e) {
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Erreur reseau vers le service de routage");
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Appel au service de routage interrompu");
+    }
+  }
+
   private RouteDistanceResponse parseRouteDistance(String body) throws IOException {
     JsonNode root = objectMapper.readTree(body);
     JsonNode summary = root.path("features").path(0).path("properties").path("summary");
@@ -81,6 +116,30 @@ public class RoutingController {
     double km = Math.round((distanceMeters / 1000.0) * 1000.0) / 1000.0;
     long min = Math.round(durationSeconds / 60.0);
     return new RouteDistanceResponse(km, min);
+  }
+
+  private RouteGeometryResponse parseRouteGeometry(String body) throws IOException {
+    JsonNode root = objectMapper.readTree(body);
+    JsonNode feature = root.path("features").path(0);
+    JsonNode summary = feature.path("properties").path("summary");
+    JsonNode coordinatesNode = feature.path("geometry").path("coordinates");
+
+    double distanceMeters = summary.path("distance").asDouble(0);
+    double durationSeconds = summary.path("duration").asDouble(0);
+    double km = Math.round((distanceMeters / 1000.0) * 1000.0) / 1000.0;
+    long min = Math.round(durationSeconds / 60.0);
+
+    List<RoutePoint> coordinates = new ArrayList<>();
+    if (coordinatesNode.isArray()) {
+      for (JsonNode pointNode : coordinatesNode) {
+        if (!pointNode.isArray() || pointNode.size() < 2) continue;
+        double lon = pointNode.path(0).asDouble();
+        double lat = pointNode.path(1).asDouble();
+        coordinates.add(new RoutePoint(lat, lon));
+      }
+    }
+
+    return new RouteGeometryResponse(km, min, coordinates);
   }
 
   private void validateCoordinates(RouteDistanceRequest request) {
@@ -108,4 +167,8 @@ public class RoutingController {
   public record RouteDistanceRequest(Double lat1, Double lon1, Double lat2, Double lon2) {}
 
   public record RouteDistanceResponse(double km, long min) {}
+
+  public record RoutePoint(double lat, double lng) {}
+
+  public record RouteGeometryResponse(double km, long min, List<RoutePoint> coordinates) {}
 }

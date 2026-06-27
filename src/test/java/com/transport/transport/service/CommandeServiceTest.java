@@ -25,6 +25,7 @@ class CommandeServiceTest {
     private ProduitRepository produitRepository;
     private UtilisateurRepository utilisateurRepository;
     private VehicleAnalysisService vehicleAnalysisService;
+    private CommandeGeographyService commandeGeographyService;
     private CommandeService service;
 
     @BeforeEach
@@ -33,11 +34,13 @@ class CommandeServiceTest {
         produitRepository = org.mockito.Mockito.mock(ProduitRepository.class);
         utilisateurRepository = org.mockito.Mockito.mock(UtilisateurRepository.class);
         vehicleAnalysisService = org.mockito.Mockito.mock(VehicleAnalysisService.class);
+        commandeGeographyService = new CommandeGeographyService();
         service = new CommandeService(
                 commandeRepository,
                 produitRepository,
                 utilisateurRepository,
-                vehicleAnalysisService);
+                vehicleAnalysisService,
+                commandeGeographyService);
     }
 
     @Test

@@ -30,17 +30,20 @@ public class PartnerCommandeService {
     private final ProduitService produitService;
     private final UtilisateurRepository utilisateurRepository;
     private final VehicleAnalysisService vehicleAnalysisService;
+    private final CommandeGeographyService commandeGeographyService;
 
     @Autowired
     public PartnerCommandeService(
             CommandeRepository commandeRepository,
             ProduitService produitService,
             UtilisateurRepository utilisateurRepository,
-            VehicleAnalysisService vehicleAnalysisService) {
+            VehicleAnalysisService vehicleAnalysisService,
+            CommandeGeographyService commandeGeographyService) {
         this.commandeRepository = commandeRepository;
         this.produitService = produitService;
         this.utilisateurRepository = utilisateurRepository;
         this.vehicleAnalysisService = vehicleAnalysisService;
+        this.commandeGeographyService = commandeGeographyService;
     }
 
     public PartnerCommandeResponse createConfirmedCommande(
@@ -74,6 +77,7 @@ public class PartnerCommandeService {
         commande.setDateConfirmer(LocalDateTime.now());
         commande.setDateDemande(LocalDateTime.now());
         commande.setVehicule(vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits()));
+        commandeGeographyService.enrichCommandeGeography(commande);
 
         Commande savedCommande = commandeRepository.save(commande);
 

@@ -26,6 +26,7 @@ class PartnerCommandeServiceTest {
     private ProduitService produitService;
     private UtilisateurRepository utilisateurRepository;
     private VehicleAnalysisService vehicleAnalysisService;
+    private CommandeGeographyService commandeGeographyService;
     private PartnerCommandeService service;
 
     @BeforeEach
@@ -34,11 +35,13 @@ class PartnerCommandeServiceTest {
         produitService = org.mockito.Mockito.mock(ProduitService.class);
         utilisateurRepository = org.mockito.Mockito.mock(UtilisateurRepository.class);
         vehicleAnalysisService = org.mockito.Mockito.mock(VehicleAnalysisService.class);
+        commandeGeographyService = new CommandeGeographyService();
         service = new PartnerCommandeService(
                 commandeRepository,
                 produitService,
                 utilisateurRepository,
-                vehicleAnalysisService);
+                vehicleAnalysisService,
+                commandeGeographyService);
     }
 
     @Test
@@ -55,7 +58,7 @@ class PartnerCommandeServiceTest {
                 "fragile",
                 BigDecimal.valueOf(55),
                 Commande.ModePaiement.EN_LIGNE,
-                new PartnerCreateCommandeRequest.ContactPoint("Boutique", "111", "Depart", 36.8, 10.1),
+                new PartnerCreateCommandeRequest.ContactPoint("Boutique", "111", "Depart", 37.0, 10.1),
                 new PartnerCreateCommandeRequest.ContactPoint("Client", "222", "Arrivee", 36.9, 10.2),
                 List.of(new PartnerCreateCommandeRequest.ProductItem(
                         "Chaise",
@@ -89,6 +92,10 @@ class PartnerCommandeServiceTest {
         assertEquals("partner-1", response.commande().getPartenaireId());
         assertEquals(Commande.Statut.confirmer, response.commande().getStatut());
         assertNotNull(response.commande().getVehicule());
+        assertEquals(Commande.Zone.GRAND_TUNIS, response.commande().getZonePrincipaleDepart());
+        assertEquals(Commande.SousZone.ARIANA, response.commande().getSousZoneDepart());
+        assertEquals(Commande.Zone.GRAND_TUNIS, response.commande().getZonePrincipaleArrivee());
+        assertEquals(Commande.SousZone.TUNIS, response.commande().getSousZoneArrivee());
         Produit produit = response.produits().get(0);
         assertEquals("cmd-1", produit.getCommandeId());
         assertEquals("Chaise", produit.getNom());
