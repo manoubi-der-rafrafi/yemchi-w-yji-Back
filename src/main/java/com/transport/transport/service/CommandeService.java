@@ -28,6 +28,7 @@ import com.transport.transport.dto.CommandeTransporteurPrincipalResponse;
 import com.transport.transport.dto.CommandeProduitsSecoursResponse;
 import com.transport.transport.dto.TransporteurSecoursCommandesResponse;
 import com.transport.transport.model.Commande;
+import com.transport.transport.model.Notification;
 import com.transport.transport.model.Commande.Statut;
 import com.transport.transport.model.Produit;
 import com.transport.transport.model.TypeVehicule;
@@ -47,6 +48,23 @@ public class CommandeService {
     private final UtilisateurRepository utilisateurRepository;
     private final VehicleAnalysisService vehicleAnalysisService;
     private final CommandeGeographyService commandeGeographyService;
+    private final NotificationService notificationService;
+
+    @Autowired
+    public CommandeService(
+            CommandeRepository commandeRepository,
+            ProduitRepository produitRepository,
+            UtilisateurRepository utilisateurRepository,
+            VehicleAnalysisService vehicleAnalysisService,
+            CommandeGeographyService commandeGeographyService,
+            NotificationService notificationService) {
+        this.commandeRepository = commandeRepository;
+        this.produitRepository = produitRepository;
+        this.utilisateurRepository = utilisateurRepository;
+        this.vehicleAnalysisService = vehicleAnalysisService;
+        this.commandeGeographyService = commandeGeographyService;
+        this.notificationService = notificationService;
+    }
 
     public CommandeService(
             CommandeRepository commandeRepository,
@@ -54,11 +72,13 @@ public class CommandeService {
             UtilisateurRepository utilisateurRepository,
             VehicleAnalysisService vehicleAnalysisService,
             CommandeGeographyService commandeGeographyService) {
-        this.commandeRepository = commandeRepository;
-        this.produitRepository = produitRepository;
-        this.utilisateurRepository = utilisateurRepository;
-        this.vehicleAnalysisService = vehicleAnalysisService;
-        this.commandeGeographyService = commandeGeographyService;
+        this(
+                commandeRepository,
+                produitRepository,
+                utilisateurRepository,
+                vehicleAnalysisService,
+                commandeGeographyService,
+                null);
     }
 
     // Historique simple d'un client
@@ -80,13 +100,16 @@ public class CommandeService {
     // Ajouter une nouvelle commande
     public Commande createCommande(Commande commande) {
         enrichCommandeGeography(commande);
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, null);
+        return saved;
     }
 
     // Mettre a jour une commande existante
     public Commande updateCommande(String id, Commande details) {
         logger.info("updateCommande id={} vehicule={}", id, details.getVehicule());
         return commandeRepository.findById(id).map(commande -> {
+            Statut ancienStatut = commande.getStatut();
             // copie EXPLICITE de tous les champs que tu veux rendre modifiables
             if (details.getLocalisationDepart() != null) {
                 commande.setLocalisationDepart(details.getLocalisationDepart());
@@ -206,7 +229,9 @@ public class CommandeService {
             // --- Met a jour la date de modification automatique ---
             commande.setMajLe(LocalDateTime.now());
             enrichCommandeGeography(commande);
-            return commandeRepository.save(commande);
+            Commande saved = commandeRepository.save(commande);
+            notifierEvenementsCommande(saved, ancienStatut);
+            return saved;
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
 
@@ -216,6 +241,7 @@ public class CommandeService {
     return commandeRepository.findById(id).map(new Function<Commande, Commande>() {
         @Override
         public Commande apply(Commande existing) {
+            Statut ancienStatut = existing.getStatut();
             // Copy only non-null fields from patch → existing
             BeanWrapper srcWrapper = new BeanWrapperImpl(patch);
             BeanWrapper targetWrapper = new BeanWrapperImpl(existing);
@@ -240,7 +266,9 @@ public class CommandeService {
             existing.setMajLe(LocalDateTime.now());
             enrichCommandeGeography(existing);
             
-            return commandeRepository.save(existing);
+            Commande saved = commandeRepository.save(existing);
+            notifierEvenementsCommande(saved, ancienStatut);
+            return saved;
         }
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
@@ -578,10 +606,14 @@ public class CommandeService {
 
     public Commande confirmerCommande(String  id) {
         return commandeRepository.findById(id).map(commande -> {
+            Statut ancienStatut = commande.getStatut();
             commande.setStatut(Commande.Statut.confirmer);
             commande.setDateConfirmer(LocalDateTime.now()); // date de confirmation
             commande.setVehicule(resolveVehicleForCommande(commande));
-            return commandeRepository.save(commande);
+            Commande saved = commandeRepository.save(commande);
+            notifierEvenementsCommande(saved, ancienStatut);
+            notifierNouvelleCommandeLivreurs(saved);
+            return saved;
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
 
@@ -632,10 +664,13 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
         if (commande.getTransporteurId() != null) {
             throw new IllegalStateException("Commande deja assignee a un transporteur");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setTransporteurId(idTransporteur);
         commande.setMajLe(LocalDateTime.now());
         commande.setStatut(Statut.en_appelle);
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 public Commande assignerTransporteurSecours(
@@ -1111,9 +1146,12 @@ public Commande demarrerAppelClient1(String id) {
         if (commande.getStatut() != Statut.en_appelle) {
             throw new IllegalStateException("Statut invalide pour demarrer l'appel client 1");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.appelle_client_1);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
@@ -1122,9 +1160,12 @@ public Commande marquerAppelClient1(String id) {
         if (commande.getStatut() != Statut.appelle_client_1) {
             throw new IllegalStateException("Statut invalide pour marquer l'appel client 1");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.appelle_client_2);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
@@ -1133,9 +1174,12 @@ public Commande marquerNonReponseClient1(String id) {
         if (commande.getStatut() != Statut.appelle_client_1) {
             throw new IllegalStateException("Statut invalide pour marquer la non reponse client 1");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.non_repondre_client_1);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
@@ -1144,9 +1188,12 @@ public Commande marquerAppelClient2(String id) {
         if (commande.getStatut() != Statut.appelle_client_2) {
             throw new IllegalStateException("Statut invalide pour marquer l'appel client 2");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.en_route);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
@@ -1155,19 +1202,108 @@ public Commande marquerNonReponseClient2(String id) {
         if (commande.getStatut() != Statut.appelle_client_2) {
             throw new IllegalStateException("Statut invalide pour marquer la non reponse client 2");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.non_repondre_client_2);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
 public Commande marquerReceptionScanne(String id) {
     return commandeRepository.findById(id).map(commande -> {
+        Statut ancienStatut = commande.getStatut();
         commande.marquerReceptionScanne();
         commande.setStatut(Statut.livree);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
+private void notifierEvenementsCommande(Commande commande, Statut ancienStatut) {
+    if (notificationService == null || commande == null || commande.getStatut() == null) {
+        return;
+    }
+
+    boolean creation = ancienStatut == null;
+    boolean statutChange = !creation && ancienStatut != commande.getStatut();
+    boolean commandeEnvoyee = commande.getStatut() == Statut.envoyee && (creation || statutChange);
+    if (commandeEnvoyee && notBlank(commande.getIdAmie())) {
+        notificationService.creer(
+                commande.getIdAmie(),
+                Notification.Type.COMMANDE_ENVOYEE,
+                "Commande recue",
+                "Une commande vous a ete envoyee.",
+                commande.getId(),
+                commande.getClientId(),
+                dataCommande(commande));
+    }
+
+    if (statutChange) {
+        notifierEtatCommande(commande, commande.getClientId());
+        if (notBlank(commande.getIdAmie()) && !Objects.equals(commande.getIdAmie(), commande.getClientId())) {
+            notifierEtatCommande(commande, commande.getIdAmie());
+        }
+    }
+}
+
+private void notifierEtatCommande(Commande commande, String destinataireId) {
+    if (!notBlank(destinataireId)) {
+        return;
+    }
+    notificationService.creer(
+            destinataireId,
+            Notification.Type.ETAT_COMMANDE,
+            "Etat de commande",
+            "La commande est maintenant: " + commande.getStatut().name(),
+            commande.getId(),
+            commande.getTransporteurId(),
+            dataCommande(commande));
+}
+
+private void notifierNouvelleCommandeLivreurs(Commande commande) {
+    if (notificationService == null || commande == null || commande.getId() == null) {
+        return;
+    }
+    utilisateurRepository.findAll()
+            .stream()
+            .filter(u -> u.getRole() == Utilisateur.Role.transporteur)
+            .filter(u -> u.getStatut() == Utilisateur.Statut.actif)
+            .filter(u -> u.getEtatIncident() == null || u.getEtatIncident() == Utilisateur.EtatIncident.RIEN)
+            .filter(u -> u.getTypeVehicule() == null || commande.getVehicule() == null
+                    || u.getTypeVehicule() == commande.getVehicule())
+            .filter(u -> commande.getSousZoneDepart() == null || commande.getSousZoneArrivee() == null
+                    || transporteurCouvreSousZones(u, commande.getSousZoneDepart(), commande.getSousZoneArrivee()))
+            .forEach(u -> notificationService.creer(
+                    u.getId(),
+                    Notification.Type.NOUVELLE_COMMANDE,
+                    "Nouvelle commande",
+                    "Une nouvelle commande peut etre traitee maintenant.",
+                    commande.getId(),
+                    commande.getClientId(),
+                    dataCommande(commande)));
+}
+
+private Map<String, String> dataCommande(Commande commande) {
+    Map<String, String> data = new LinkedHashMap<>();
+    data.put("commandeId", commande.getId());
+    if (commande.getStatut() != null) {
+        data.put("statut", commande.getStatut().name());
+    }
+    if (commande.getClientId() != null) {
+        data.put("clientId", commande.getClientId());
+    }
+    if (commande.getIdAmie() != null) {
+        data.put("idAmie", commande.getIdAmie());
+    }
+    return data;
+}
+
+private boolean notBlank(String value) {
+    return value != null && !value.isBlank();
 }
 
 

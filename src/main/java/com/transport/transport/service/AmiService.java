@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import com.transport.transport.model.Ami;
+import com.transport.transport.model.Notification;
 import com.transport.transport.model.StatutAmi;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.AmiRepository;
@@ -22,10 +23,15 @@ public class AmiService {
 
     private final AmiRepository amiRepository;
     private final UtilisateurRepository utilisateurRepository;
+    private final NotificationService notificationService;
 
-    public AmiService(AmiRepository amiRepository, UtilisateurRepository utilisateurRepository) {
+    public AmiService(
+            AmiRepository amiRepository,
+            UtilisateurRepository utilisateurRepository,
+            NotificationService notificationService) {
         this.amiRepository = amiRepository;
         this.utilisateurRepository = utilisateurRepository;
+        this.notificationService = notificationService;
     }
 
     /* ----------------------- Invitations CRUD ----------------------- */
@@ -43,7 +49,18 @@ public class AmiService {
             throw new RuntimeException("Invitation déjà envoyée");
         }
         ami.setStatut(StatutAmi.EN_ATTENTE);
-        return amiRepository.save(ami);
+        Ami saved = amiRepository.save(ami);
+        notificationService.creer(
+                saved.getRecepteurId(),
+                Notification.Type.INVITATION_AMI,
+                "Invitation ami",
+                "Vous avez recu une invitation ami.",
+                saved.getId(),
+                saved.getDemandeurId(),
+                Map.of(
+                        "demandeurId", saved.getDemandeurId(),
+                        "recepteurId", saved.getRecepteurId()));
+        return saved;
     }
 
     public Ami accepterInvitationByUsers(String demandeurId, String recepteurId) {
