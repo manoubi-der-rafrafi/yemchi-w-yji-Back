@@ -394,6 +394,9 @@ public static record LoginRequest(String email, String motDePasse) {}
     if (user.getStatut() == Utilisateur.Statut.banni) {
       return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Compte banni");
     }
+    if (user.getRole() == Utilisateur.Role.admin) {
+      return null;
+    }
     if (!isSignupComplete(user)) {
       user.setMotDePasse(null);
       return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
