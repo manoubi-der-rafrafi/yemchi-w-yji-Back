@@ -84,9 +84,12 @@ public class SecurityConfig {
           String role = (u.getRole() != null) ? u.getRole().name() : "CLIENT";
           role = role.toUpperCase().replaceFirst("^ROLE_", "");
           boolean disabled = (u.getStatut() == Utilisateur.Statut.banni);
+          String encodedPassword = (u.getMotDePasse() != null && !u.getMotDePasse().isBlank())
+              ? u.getMotDePasse()
+              : "{bcrypt}$2a$10$w92HHSvfDc7mW6cU2rQj9u4KjUIBWoZdyRMUi5uqJmqJt5E9WC42u";
 
           return User.withUsername(u.getEmail())
-              .password(u.getMotDePasse())
+              .password(encodedPassword)
               .roles(role)
               .accountExpired(false)
               .accountLocked(false)
@@ -195,6 +198,7 @@ public class SecurityConfig {
             .requestMatchers("/error").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/login/google").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/google").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/email").permitAll()
             .requestMatchers("/api/utilisateur/register/**").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/utilisateur/verify-email").permitAll()
@@ -233,6 +237,7 @@ public class SecurityConfig {
       return "/api/utilisateur/login".equals(uri)
           || "/api/utilisateur/login/google".equals(uri)
           || "/api/utilisateur/register".equals(uri)
+          || "/api/utilisateur/register/google".equals(uri)
           || "/api/utilisateur/register/email".equals(uri)
           || "/api/utilisateur/register/complete".equals(uri)
           || "/error".equals(uri);

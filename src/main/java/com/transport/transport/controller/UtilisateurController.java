@@ -3,6 +3,7 @@ package com.transport.transport.controller;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -130,6 +131,7 @@ public class UtilisateurController {
             .orElseGet(() -> {
               Utilisateur u = new Utilisateur();
               u.setEmail(email);
+              u.setGoogleSubject(payload.getSubject());
               u.setPrenom((String) payload.get("given_name"));
               u.setNom((String) payload.get("family_name"));
               u.setImage((String) payload.get("picture"));
@@ -142,6 +144,7 @@ public class UtilisateurController {
         if (!Boolean.TRUE.equals(user.getIsEmailVerified())) {
           user.setIsEmailVerified(true);
         }
+        user.setGoogleSubject(payload.getSubject());
         if ((user.getPrenom() == null || user.getPrenom().isBlank()) && payload.get("given_name") instanceof String givenName) {
           user.setPrenom(givenName);
         }
@@ -200,6 +203,20 @@ public class UtilisateurController {
 }
 public static record LoginRequest(String email, String motDePasse) {}
   public static record LoginResponse(String token, Utilisateur user) {}
+  public static record GoogleRegisterRequest(
+      @com.fasterxml.jackson.annotation.JsonProperty("idToken") String idToken,
+      @com.fasterxml.jackson.annotation.JsonProperty("id_token") String idTokenSnake,
+      String adresse,
+      String telephone,
+      @com.fasterxml.jackson.annotation.JsonAlias({"date_naissance", "dateNaissance"}) LocalDate dateNaissance,
+      @com.fasterxml.jackson.annotation.JsonAlias({"phone_country_code", "phoneCountryCode"}) String phoneCountryCode,
+      @com.fasterxml.jackson.annotation.JsonAlias({"phone_dial_code", "phoneDialCode"}) String phoneDialCode,
+      @com.fasterxml.jackson.annotation.JsonAlias({"motDePasse", "password"}) String motDePasse
+  ) {
+    public String resolvedToken() {
+      return (idToken != null && !idToken.isBlank()) ? idToken : idTokenSnake;
+    }
+  }
   public static record SendEmailRequest(String to, String subject, String body, Boolean html) {}
 
     // Récupérer un utilisateur par ID (GET /api/utilisateur/id/1)
@@ -229,17 +246,15 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
 
     try {
-      Utilisateur saved = utilisateurRepository.findByEmailIgnoreCase(payload.getEmail())
-          .map(existing -> {
-            if (isSignupComplete(existing)) {
-              throw new ResponseStatusException(HttpStatus.CONFLICT, "Email deja utilise");
-            }
-            if (!Boolean.TRUE.equals(existing.getIsEmailVerified())) {
-              throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Email non verifie");
-            }
-            return completePendingSignup(existing, payload);
-          })
-          .orElseGet(() -> createCompleteUser(payload));
+      Utilisateur existing = utilisateurRepository.findByEmailIgnoreCase(payload.getEmail())
+          .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Email non verifie"));
+      if (isSignupComplete(existing)) {
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Email deja utilise");
+      }
+      if (!Boolean.TRUE.equals(existing.getIsEmailVerified())) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Email non verifie");
+      }
+      Utilisateur saved = completePendingSignup(existing, payload);
 
       return ResponseEntity.status(HttpStatus.CREATED).body(buildLoginResponse(saved));
     } catch (ResponseStatusException e) {
@@ -356,6 +371,78 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
   }
 
+  @PostMapping("/register/google")
+  public ResponseEntity<?> registerWithGoogle(@RequestBody GoogleRegisterRequest req) {
+    String tokenFromRequest = (req != null) ? req.resolvedToken() : null;
+    if (tokenFromRequest == null || tokenFromRequest.isBlank()) {
+      return ResponseEntity.badRequest().body(Map.of(
+          "error", "Token Google manquant",
+          "errorCode", "GOOGLE_TOKEN_MISSING"));
+    }
+    if (req.adresse() == null || req.adresse().isBlank()
+        || req.telephone() == null || req.telephone().isBlank()
+        || req.dateNaissance() == null) {
+      return ResponseEntity.badRequest().body(Map.of(
+          "error", "Adresse, telephone et date de naissance requis",
+          "errorCode", "GOOGLE_SIGNUP_REQUIRED_FIELDS"));
+    }
+
+    try {
+      Payload payload = verifyGooglePayload(tokenFromRequest);
+      String email = payload.getEmail();
+      String googleSubject = payload.getSubject();
+
+      Utilisateur user = utilisateurRepository.findByEmailIgnoreCase(email)
+          .orElseGet(() -> {
+            Utilisateur created = new Utilisateur();
+            created.setEmail(email);
+            created.setRole(Utilisateur.Role.client);
+            created.setStatut(Utilisateur.Statut.actif);
+            return created;
+          });
+
+      user.setGoogleSubject(googleSubject);
+      user.setIsEmailVerified(true);
+      if (payload.get("given_name") instanceof String givenName && !givenName.isBlank()) {
+        user.setPrenom(givenName);
+      }
+      if (payload.get("family_name") instanceof String familyName && !familyName.isBlank()) {
+        user.setNom(familyName);
+      }
+      if ((user.getImage() == null || user.getImage().isBlank())
+          && payload.get("picture") instanceof String picture) {
+        user.setImage(picture);
+      }
+      user.setAdresse(req.adresse());
+      user.setTelephone(req.telephone());
+      user.setPhoneCountryCode(req.phoneCountryCode());
+      user.setPhoneDialCode(req.phoneDialCode());
+      user.setDateNaissance(req.dateNaissance());
+      if (req.motDePasse() != null && !req.motDePasse().isBlank()) {
+        user.setMotDePasse(passwordEncoder.encode(req.motDePasse()));
+      }
+      user.setStatut(Utilisateur.Statut.actif);
+      if (user.getRole() == null) {
+        user.setRole(Utilisateur.Role.client);
+      }
+      if (user.getDateCreation() == null) {
+        user.setDateCreation(Instant.now().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
+      }
+
+      user = utilisateurRepository.save(user);
+      return ResponseEntity.status(HttpStatus.CREATED).body(buildLoginResponse(user));
+    } catch (ResponseStatusException e) {
+      return ResponseEntity.status(e.getStatusCode()).body(Map.of(
+          "error", e.getReason(),
+          "errorCode", "GOOGLE_TOKEN_INVALID"));
+    } catch (Exception e) {
+      logger.error("register/google failed", e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+          "error", "Erreur inscription Google",
+          "errorCode", "GOOGLE_REGISTER_ERROR"));
+    }
+  }
+
   @PostMapping("/register/complete")
   public ResponseEntity<?> registerStep1Identity(@RequestBody Map<String, String> body) {
     String email = body.get("email");
@@ -382,13 +469,34 @@ public static record LoginRequest(String email, String motDePasse) {}
         .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouve"));
   }
   private boolean isSignupComplete(Utilisateur user) {
+    boolean hasLocalPassword = user.getMotDePasse() != null && !user.getMotDePasse().isBlank();
+    boolean hasGoogleLogin = user.getGoogleSubject() != null && !user.getGoogleSubject().isBlank();
     return user.getDateCreation() != null
         && user.getNom() != null && !user.getNom().isBlank()
         && user.getPrenom() != null && !user.getPrenom().isBlank()
         && user.getAdresse() != null && !user.getAdresse().isBlank()
         && user.getTelephone() != null && !user.getTelephone().isBlank()
         && user.getDateNaissance() != null
-        && user.getMotDePasse() != null && !user.getMotDePasse().isBlank();
+        && (hasLocalPassword || hasGoogleLogin);
+  }
+  private Payload verifyGooglePayload(String tokenFromRequest) throws Exception {
+    GoogleIdToken idToken = googleVerifier.verify(tokenFromRequest);
+    if (idToken == null) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token Google invalide");
+    }
+
+    Payload payload = idToken.getPayload();
+    String email = payload.getEmail();
+    if (email == null || email.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Email Google manquante");
+    }
+    if (!Boolean.TRUE.equals(payload.getEmailVerified())) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Email Google non verifiee");
+    }
+    if (payload.getSubject() == null || payload.getSubject().isBlank()) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Identifiant Google manquant");
+    }
+    return payload;
   }
   private ResponseEntity<?> validateCompletedSignup(Utilisateur user, String errorCode) {
     if (user.getStatut() == Utilisateur.Statut.banni) {
