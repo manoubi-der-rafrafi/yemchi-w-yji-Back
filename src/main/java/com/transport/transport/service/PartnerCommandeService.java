@@ -82,15 +82,15 @@ public class PartnerCommandeService {
         commande.setStatut(Commande.Statut.confirmer);
         commande.setDateConfirmer(LocalDateTime.now());
         commande.setDateDemande(LocalDateTime.now());
-        commande.setVehicule(vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits()));
         commandeGeographyService.enrichCommandeGeography(commande);
         RoutingService.RouteResult route = routingService.calculateRoute(
                 commande.getLatitudeDepart(),
                 commande.getLongitudeDepart(),
                 commande.getLatitudeDestination(),
                 commande.getLongitudeDestination());
+        commande.setVehicule(vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits(), route.km()));
         commande.setDistanceKm(route.km());
-        commande.setPrix(tarificationService.calculate(commande.getVehicule(), route.km()));
+        applyPricing(commande, route.km(), commande.getDateConfirmer());
 
         Commande savedCommande = commandeRepository.save(commande);
 
@@ -117,17 +117,36 @@ public class PartnerCommandeService {
 
     public PartnerQuoteResponse quote(PartnerCreateCommandeRequest request) {
         validateQuoteRequest(request);
-        TypeVehicule vehicule = vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits());
         RoutingService.RouteResult route = routingService.calculateRoute(
                 request.depart().latitude(),
                 request.depart().longitude(),
                 request.arrivee().latitude(),
                 request.arrivee().longitude());
+        TypeVehicule vehicule = vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits(), route.km());
         return new PartnerQuoteResponse(
                 vehicule,
                 route.km(),
                 route.min(),
                 tarificationService.calculate(vehicule, route.km()));
+    }
+
+    private void applyPricing(Commande commande, double distanceKm, LocalDateTime reference) {
+        TarificationService.TarificationResult result = tarificationService.calculateDetailed(
+                commande.getVehicule(), distanceKm, reference);
+        commande.setPrix(result.prix());
+        commande.setPrixLivreur(result.prixLivreur());
+        commande.setPrixSociete(result.prixSociete());
+        commande.setTarificationVehiculeId(result.tarificationVehiculeId());
+        commande.setMajorationTarifId(result.majorationTarifId());
+        commande.setPourcentageMajoration(result.pourcentageMajoration());
+        commande.setPrixCommencementApplique(result.prixCommencement());
+        commande.setPrixCommencementLivreurApplique(result.prixCommencementLivreur());
+        commande.setPrixCommencementSocieteApplique(result.prixCommencementSociete());
+        commande.setPrixParKilometreApplique(result.prixParKilometre());
+        commande.setPrixParKilometreLivreurApplique(result.prixParKilometreLivreur());
+        commande.setPrixParKilometreSocieteApplique(result.prixParKilometreSociete());
+        commande.setDateCalculTarification(reference);
+        commande.setTarifFallback(result.tarifFallback());
     }
 
     public TransporteurInfo getTransporteurByExternalOrderId(PartnerPrincipal principal, String externalOrderId) {

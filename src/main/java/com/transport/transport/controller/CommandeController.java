@@ -421,6 +421,21 @@ public ResponseEntity<BigDecimal> getSommePrixLivreeHorsLigneByTransporteur(@Pat
     BigDecimal total = commandeService.getSommePrixCommandesLivreesHorsLigneByTransporteur(idTransporteur);
     return ResponseEntity.ok(total);
 }
+@GetMapping("/transporteur/{idTransporteur}/total-gains-livreur")
+public ResponseEntity<BigDecimal> getSommeGainsLivreur(@PathVariable String idTransporteur, Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
+    return ResponseEntity.ok(commandeService.getSommePrixLivreurCommandesLivreesByTransporteur(idTransporteur));
+}
+@GetMapping("/transporteur/{idTransporteur}/total-gains-livreur-en-ligne")
+public ResponseEntity<BigDecimal> getSommeGainsLivreurEnLigne(@PathVariable String idTransporteur, Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
+    return ResponseEntity.ok(commandeService.getSommePrixLivreurLivreesEnLigneByTransporteur(idTransporteur));
+}
+@GetMapping("/transporteur/{idTransporteur}/total-part-societe-hors-ligne")
+public ResponseEntity<BigDecimal> getSommePartSocieteHorsLigne(@PathVariable String idTransporteur, Authentication authentication) {
+    authorizationService.requireSelfOrAdmin(idTransporteur, authentication);
+    return ResponseEntity.ok(commandeService.getSommePrixSocieteLivreesHorsLigneByTransporteur(idTransporteur));
+}
 @GetMapping("/transporteur/{idTransporteur}/en-ligne")
 public List<Commande> getCommandesEnLigneByTransporteur(
         @PathVariable String idTransporteur,

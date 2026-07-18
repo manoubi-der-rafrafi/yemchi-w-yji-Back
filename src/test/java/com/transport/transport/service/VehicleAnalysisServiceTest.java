@@ -42,4 +42,22 @@ class VehicleAnalysisServiceTest {
         assertEquals(TypeVehicule.DEUX_ROUES_MOTORISES, selected);
         verify(mailService, never()).sendTextEmail(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
+
+    @Test
+    void distanceCanUpgradeTwoWheelsToPassengerVehicle() {
+        VehicleAnalysisService service = new VehicleAnalysisService(
+                org.mockito.Mockito.mock(MailService.class),
+                new ObjectMapper(),
+                "",
+                "",
+                8000);
+
+        TypeVehicule selected = service.resolveVehicleForPartnerProducts(List.of(
+                new PartnerCreateCommandeRequest.ProductItem(
+                        "Petit colis", "colis", 1, BigDecimal.ONE,
+                        BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN,
+                        null, null, null, null)), 31);
+
+        assertEquals(TypeVehicule.VEHICULE_PARTICULIER, selected);
+    }
 }

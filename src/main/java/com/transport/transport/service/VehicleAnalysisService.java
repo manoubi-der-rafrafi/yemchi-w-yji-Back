@@ -35,6 +35,8 @@ public class VehicleAnalysisService {
     private final String vehicleAnalysisAlertEmail;
     private final HttpClient httpClient;
     private final Duration vehicleAnalysisTimeout;
+    @Value("${app.vehicle-analysis.max-two-wheel-distance-km:30}")
+    private double maxTwoWheelDistanceKm = 30.0;
 
     public VehicleAnalysisService(
             MailService mailService,
@@ -53,6 +55,10 @@ public class VehicleAnalysisService {
     }
 
     public TypeVehicule resolveVehicleForProduits(List<Produit> produits) {
+        return resolveVehicleForProduits(produits, Double.NaN);
+    }
+
+    public TypeVehicule resolveVehicleForProduits(List<Produit> produits, double distanceKm) {
         List<VehicleItem> items = (produits == null ? List.<Produit>of() : produits).stream()
                 .map(produit -> new VehicleItem(
                         produit.getNom(),
@@ -63,10 +69,16 @@ public class VehicleAnalysisService {
                         produit.getProfondeur(),
                         produit.getHauteur()))
                 .toList();
-        return resolveVehicle(items);
+        return resolveVehicle(items, distanceKm);
     }
 
     public TypeVehicule resolveVehicleForPartnerProducts(List<PartnerCreateCommandeRequest.ProductItem> produits) {
+        return resolveVehicleForPartnerProducts(produits, Double.NaN);
+    }
+
+    public TypeVehicule resolveVehicleForPartnerProducts(
+            List<PartnerCreateCommandeRequest.ProductItem> produits,
+            double distanceKm) {
         List<VehicleItem> items = (produits == null ? List.<PartnerCreateCommandeRequest.ProductItem>of() : produits).stream()
                 .map(produit -> new VehicleItem(
                         produit.nom(),
@@ -77,20 +89,20 @@ public class VehicleAnalysisService {
                         produit.profondeur(),
                         produit.hauteur()))
                 .toList();
-        return resolveVehicle(items);
+        return resolveVehicle(items, distanceKm);
     }
 
-    private TypeVehicule resolveVehicle(List<VehicleItem> items) {
-        TypeVehicule externalVehicle = analyzeVehicleExternally(items);
+    private TypeVehicule resolveVehicle(List<VehicleItem> items, double distanceKm) {
+        TypeVehicule externalVehicle = analyzeVehicleExternally(items, distanceKm);
         if (externalVehicle != null) {
-            return externalVehicle;
+            return adjustForDistance(externalVehicle, distanceKm);
         }
-        TypeVehicule fallbackVehicle = estimateVehicleLocally(items);
+        TypeVehicule fallbackVehicle = adjustForDistance(estimateVehicleLocally(items), distanceKm);
         logger.info("Vehicle analysis fallback selected vehicle={}", fallbackVehicle);
         return fallbackVehicle;
     }
 
-    private TypeVehicule analyzeVehicleExternally(List<VehicleItem> items) {
+    private TypeVehicule analyzeVehicleExternally(List<VehicleItem> items, double distanceKm) {
         if (items == null || items.isEmpty()) {
             return null;
         }
@@ -99,7 +111,7 @@ public class VehicleAnalysisService {
             return null;
         }
 
-        String prompt = buildOrderAnalysisPrompt(items);
+        String prompt = buildOrderAnalysisPrompt(items, distanceKm);
 
         try {
             String requestBody = objectMapper.writeValueAsString(Map.of("prompt", prompt));
@@ -183,10 +195,13 @@ public class VehicleAnalysisService {
         }
     }
 
-    private String buildOrderAnalysisPrompt(List<VehicleItem> items) {
+    private String buildOrderAnalysisPrompt(List<VehicleItem> items, double distanceKm) {
         StringBuilder builder = new StringBuilder();
         builder.append("Analyze this delivery order and choose the most appropriate vehicle.\n");
         builder.append("Return JSON only with keys \"thinking\" and \"selected_vehicle\".\n");
+        if (Double.isFinite(distanceKm) && distanceKm > 0) {
+            builder.append("Road distance: ").append(distanceKm).append(" km. Distance must influence the vehicle choice.\n");
+        }
         builder.append("Products:\n");
 
         for (VehicleItem item : items) {
@@ -405,6 +420,15 @@ public class VehicleAnalysisService {
             return TypeVehicule.FOURGON_MINIBUS;
         }
         return TypeVehicule.GROS_UTILITAIRE;
+    }
+
+    private TypeVehicule adjustForDistance(TypeVehicule vehicle, double distanceKm) {
+        if (vehicle == TypeVehicule.DEUX_ROUES_MOTORISES
+                && Double.isFinite(distanceKm)
+                && distanceKm > maxTwoWheelDistanceKm) {
+            return TypeVehicule.VEHICULE_PARTICULIER;
+        }
+        return vehicle;
     }
 
     private boolean lte(BigDecimal value, String limit) {

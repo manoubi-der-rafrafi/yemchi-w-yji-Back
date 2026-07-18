@@ -107,8 +107,7 @@ public class CommandeService {
 
     // Ajouter une nouvelle commande
     public Commande createCommande(Commande commande) {
-        commande.setPrix(null);
-        commande.setDistanceKm(null);
+        clearOfficialPricing(commande);
         enrichCommandeGeography(commande);
         Commande saved = commandeRepository.save(commande);
         notifierEvenementsCommande(saved, null);
@@ -140,7 +139,6 @@ public class CommandeService {
                 if (details.getStatut() == Statut.confirmer
                         && commande.getStatut() != Statut.confirmer) {
                     commande.setDateConfirmer(LocalDateTime.now());
-                    commande.setVehicule(resolveVehicleForCommande(commande));
                 }
                 commande.setStatut(details.getStatut());
             }
@@ -232,7 +230,7 @@ public class CommandeService {
             // --- Met a jour la date de modification automatique ---
             commande.setMajLe(LocalDateTime.now());
             enrichCommandeGeography(commande);
-            if (shouldRecalculateQuote(details) && hasQuoteInputs(commande)) {
+            if (ancienStatut != Statut.confirmer && shouldRecalculateQuote(details) && hasQuoteInputs(commande)) {
                 applyOfficialQuote(commande);
             }
             Commande saved = commandeRepository.save(commande);
@@ -260,7 +258,21 @@ public class CommandeService {
                         field.equals("createdAt") ||
                         field.equals("majLe") ||
                         field.equals("prix") ||
-                        field.equals("distanceKm")) {
+                        field.equals("prixLivreur") ||
+                        field.equals("prixSociete") ||
+                        field.equals("tarificationVehiculeId") ||
+                        field.equals("majorationTarifId") ||
+                        field.equals("pourcentageMajoration") ||
+                        field.equals("prixCommencementApplique") ||
+                        field.equals("prixCommencementLivreurApplique") ||
+                        field.equals("prixCommencementSocieteApplique") ||
+                        field.equals("prixParKilometreApplique") ||
+                        field.equals("prixParKilometreLivreurApplique") ||
+                        field.equals("prixParKilometreSocieteApplique") ||
+                        field.equals("dateCalculTarification") ||
+                        field.equals("tarifFallback") ||
+                        field.equals("distanceKm") ||
+                        field.equals("vehicule")) {
                     continue;
                 }
                 
@@ -273,10 +285,7 @@ public class CommandeService {
             // Always update modification date
             existing.setMajLe(LocalDateTime.now());
             enrichCommandeGeography(existing);
-            if (patch.getStatut() == Statut.confirmer && existing.getVehicule() == null) {
-                existing.setVehicule(resolveVehicleForCommande(existing));
-            }
-            if (shouldRecalculateQuote(patch) && hasQuoteInputs(existing)) {
+            if (ancienStatut != Statut.confirmer && shouldRecalculateQuote(patch) && hasQuoteInputs(existing)) {
                 applyOfficialQuote(existing);
             }
             
@@ -425,6 +434,19 @@ public class CommandeService {
         target.setDateConfirmer(source.getDateConfirmer());
         target.setStatut(source.getStatut());
         target.setPrix(source.getPrix());
+        target.setPrixLivreur(source.getPrixLivreur());
+        target.setPrixSociete(source.getPrixSociete());
+        target.setTarificationVehiculeId(source.getTarificationVehiculeId());
+        target.setMajorationTarifId(source.getMajorationTarifId());
+        target.setPourcentageMajoration(source.getPourcentageMajoration());
+        target.setPrixCommencementApplique(source.getPrixCommencementApplique());
+        target.setPrixCommencementLivreurApplique(source.getPrixCommencementLivreurApplique());
+        target.setPrixCommencementSocieteApplique(source.getPrixCommencementSocieteApplique());
+        target.setPrixParKilometreApplique(source.getPrixParKilometreApplique());
+        target.setPrixParKilometreLivreurApplique(source.getPrixParKilometreLivreurApplique());
+        target.setPrixParKilometreSocieteApplique(source.getPrixParKilometreSocieteApplique());
+        target.setDateCalculTarification(source.getDateCalculTarification());
+        target.setTarifFallback(source.getTarifFallback());
         target.setPoids(source.getPoids());
         target.setVolume(source.getVolume());
         target.setVehicule(source.getVehicule());
@@ -483,6 +505,19 @@ public class CommandeService {
         if (target.getPrix() == null) {
             target.setPrix(source.getPrix());
         }
+        if (target.getPrixLivreur() == null) target.setPrixLivreur(source.getPrixLivreur());
+        if (target.getPrixSociete() == null) target.setPrixSociete(source.getPrixSociete());
+        if (target.getTarificationVehiculeId() == null) target.setTarificationVehiculeId(source.getTarificationVehiculeId());
+        if (target.getMajorationTarifId() == null) target.setMajorationTarifId(source.getMajorationTarifId());
+        if (target.getPourcentageMajoration() == null) target.setPourcentageMajoration(source.getPourcentageMajoration());
+        if (target.getPrixCommencementApplique() == null) target.setPrixCommencementApplique(source.getPrixCommencementApplique());
+        if (target.getPrixCommencementLivreurApplique() == null) target.setPrixCommencementLivreurApplique(source.getPrixCommencementLivreurApplique());
+        if (target.getPrixCommencementSocieteApplique() == null) target.setPrixCommencementSocieteApplique(source.getPrixCommencementSocieteApplique());
+        if (target.getPrixParKilometreApplique() == null) target.setPrixParKilometreApplique(source.getPrixParKilometreApplique());
+        if (target.getPrixParKilometreLivreurApplique() == null) target.setPrixParKilometreLivreurApplique(source.getPrixParKilometreLivreurApplique());
+        if (target.getPrixParKilometreSocieteApplique() == null) target.setPrixParKilometreSocieteApplique(source.getPrixParKilometreSocieteApplique());
+        if (target.getDateCalculTarification() == null) target.setDateCalculTarification(source.getDateCalculTarification());
+        if (target.getTarifFallback() == null) target.setTarifFallback(source.getTarifFallback());
         if (target.getPoids() == null) {
             target.setPoids(source.getPoids());
         }
@@ -623,7 +658,6 @@ public class CommandeService {
             Statut ancienStatut = commande.getStatut();
             commande.setStatut(Commande.Statut.confirmer);
             commande.setDateConfirmer(LocalDateTime.now()); // date de confirmation
-            commande.setVehicule(resolveVehicleForCommande(commande));
             applyOfficialQuote(commande);
             Commande saved = commandeRepository.save(commande);
             notifierEvenementsCommande(saved, ancienStatut);
@@ -634,16 +668,15 @@ public class CommandeService {
 
     public Commande prepareCommandeVehicle(String id) {
         return commandeRepository.findById(id).map(commande -> {
-            commande.setVehicule(resolveVehicleForCommande(commande));
             applyOfficialQuote(commande);
             commande.setMajLe(LocalDateTime.now());
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
 
-    private TypeVehicule resolveVehicleForCommande(Commande commande) {
+    private TypeVehicule resolveVehicleForCommande(Commande commande, double distanceKm) {
         List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
-        return vehicleAnalysisService.resolveVehicleForProduits(produits);
+        return vehicleAnalysisService.resolveVehicleForProduits(produits, distanceKm);
     }
 
     private boolean shouldRecalculateQuote(Commande details) {
@@ -651,7 +684,6 @@ public class CommandeService {
                 || details.getLongitudeDepart() != null
                 || details.getLatitudeDestination() != null
                 || details.getLongitudeDestination() != null
-                || details.getVehicule() != null
                 || details.getStatut() == Statut.confirmer;
     }
 
@@ -659,8 +691,7 @@ public class CommandeService {
         return commande.getLatitudeDepart() != null
                 && commande.getLongitudeDepart() != null
                 && commande.getLatitudeDestination() != null
-                && commande.getLongitudeDestination() != null
-                && commande.getVehicule() != null;
+                && commande.getLongitudeDestination() != null;
     }
 
     private void applyOfficialQuote(Commande commande) {
@@ -668,7 +699,7 @@ public class CommandeService {
             return;
         }
         if (!hasQuoteInputs(commande)) {
-            throw new IllegalArgumentException("Coordonnees et vehicule obligatoires pour calculer le tarif");
+            throw new IllegalArgumentException("Coordonnees obligatoires pour calculer le tarif");
         }
         RoutingService.RouteResult route = routingService.calculateRoute(
                 commande.getLatitudeDepart(),
@@ -676,7 +707,47 @@ public class CommandeService {
                 commande.getLatitudeDestination(),
                 commande.getLongitudeDestination());
         commande.setDistanceKm(route.km());
-        commande.setPrix(tarificationService.calculate(commande.getVehicule(), route.km()));
+        commande.setVehicule(resolveVehicleForCommande(commande, route.km()));
+        LocalDateTime dateReference = commande.getDateConfirmer() != null
+                ? commande.getDateConfirmer()
+                : LocalDateTime.now();
+        TarificationService.TarificationResult result = tarificationService.calculateDetailed(
+                commande.getVehicule(), route.km(), dateReference);
+        commande.setPrix(result.prix());
+        commande.setPrixLivreur(result.prixLivreur());
+        commande.setPrixSociete(result.prixSociete());
+        commande.setTarificationVehiculeId(result.tarificationVehiculeId());
+        commande.setMajorationTarifId(result.majorationTarifId());
+        commande.setPourcentageMajoration(result.pourcentageMajoration());
+        commande.setPrixCommencementApplique(result.prixCommencement());
+        commande.setPrixCommencementLivreurApplique(result.prixCommencementLivreur());
+        commande.setPrixCommencementSocieteApplique(result.prixCommencementSociete());
+        commande.setPrixParKilometreApplique(result.prixParKilometre());
+        commande.setPrixParKilometreLivreurApplique(result.prixParKilometreLivreur());
+        commande.setPrixParKilometreSocieteApplique(result.prixParKilometreSociete());
+        commande.setDateCalculTarification(dateReference);
+        commande.setTarifFallback(result.tarifFallback());
+        validatePriceSplit(commande);
+    }
+
+    private void clearOfficialPricing(Commande commande) {
+        commande.setPrix(null);
+        commande.setPrixLivreur(null);
+        commande.setPrixSociete(null);
+        commande.setDistanceKm(null);
+        commande.setVehicule(null);
+        commande.setTarificationVehiculeId(null);
+        commande.setMajorationTarifId(null);
+        commande.setPourcentageMajoration(null);
+        commande.setDateCalculTarification(null);
+        commande.setTarifFallback(null);
+    }
+
+    private void validatePriceSplit(Commande commande) {
+        if (commande.getPrix() == null || commande.getPrixLivreur() == null || commande.getPrixSociete() == null
+                || commande.getPrixLivreur().add(commande.getPrixSociete()).compareTo(commande.getPrix()) != 0) {
+            throw new IllegalStateException("Le prix livreur et le prix societe doivent correspondre au prix total");
+        }
     }
     public List<Commande> getByIdAmie(String idAmie) {
         return commandeRepository.findByIdAmie(idAmie);
@@ -966,6 +1037,38 @@ public BigDecimal getSommePrixCommandesLivreesHorsLigneByTransporteur(String idT
         if (commande.getPrix() != null) {
             total = total.add(commande.getPrix());
         }
+    }
+    return total;
+}
+
+public BigDecimal getSommePrixLivreurCommandesLivreesByTransporteur(String idTransporteur) {
+    return sumOfficialPart(
+            commandeRepository.findByTransporteurIdAndStatut(idTransporteur, Commande.Statut.livree),
+            true);
+}
+
+public BigDecimal getSommePrixLivreurLivreesEnLigneByTransporteur(String idTransporteur) {
+    return sumOfficialPart(
+            commandeRepository.findByTransporteurIdAndStatutAndModePaiement(
+                    idTransporteur, Commande.Statut.livree, Commande.ModePaiement.EN_LIGNE),
+            true);
+}
+
+public BigDecimal getSommePrixSocieteLivreesHorsLigneByTransporteur(String idTransporteur) {
+    return sumOfficialPart(
+            commandeRepository.findByTransporteurIdAndStatutAndModePaiementNot(
+                    idTransporteur, Commande.Statut.livree, Commande.ModePaiement.EN_LIGNE),
+            false);
+}
+
+private BigDecimal sumOfficialPart(List<Commande> commandes, boolean livreurPart) {
+    BigDecimal total = BigDecimal.ZERO;
+    for (Commande commande : commandes) {
+        BigDecimal value = livreurPart ? commande.getPrixLivreur() : commande.getPrixSociete();
+        if (value == null && commande.getPrix() != null) {
+            value = commande.getPrix().divide(new BigDecimal("2"), 3, java.math.RoundingMode.HALF_UP);
+        }
+        if (value != null) total = total.add(value);
     }
     return total;
 }

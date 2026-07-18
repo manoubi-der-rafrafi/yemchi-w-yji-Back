@@ -3,6 +3,7 @@ package com.transport.transport.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -17,6 +18,8 @@ import com.transport.transport.model.Commande;
 import com.transport.transport.model.Produit;
 import com.transport.transport.model.TypeVehicule;
 import com.transport.transport.repository.CommandeRepository;
+import com.transport.transport.repository.MajorationTarifRepository;
+import com.transport.transport.repository.TarificationVehiculeRepository;
 import com.transport.transport.repository.UtilisateurRepository;
 import com.transport.transport.security.PartnerPrincipal;
 
@@ -39,7 +42,12 @@ class PartnerCommandeServiceTest {
         vehicleAnalysisService = org.mockito.Mockito.mock(VehicleAnalysisService.class);
         commandeGeographyService = new CommandeGeographyService();
         routingService = org.mockito.Mockito.mock(RoutingService.class);
-        tarificationService = new TarificationService();
+        TarificationVehiculeRepository tarifRepository = org.mockito.Mockito.mock(TarificationVehiculeRepository.class);
+        MajorationTarifRepository majorationRepository = org.mockito.Mockito.mock(MajorationTarifRepository.class);
+        when(tarifRepository.findFirstByTypeVehiculeAndDateFinIsNullAndDateDebutLessThanEqualOrderByDateDebutDesc(any(), any()))
+                .thenReturn(Optional.empty());
+        when(majorationRepository.findFirstActiveAt(any())).thenReturn(Optional.empty());
+        tarificationService = new TarificationService(tarifRepository, majorationRepository);
         service = new PartnerCommandeService(
                 commandeRepository,
                 produitService,
@@ -88,7 +96,7 @@ class PartnerCommandeServiceTest {
             return commande;
         });
         when(produitService.createProduits(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        when(vehicleAnalysisService.resolveVehicleForPartnerProducts(any()))
+        when(vehicleAnalysisService.resolveVehicleForPartnerProducts(any(), anyDouble()))
                 .thenReturn(TypeVehicule.VEHICULE_PARTICULIER);
         when(routingService.calculateRoute(37.0, 10.1, 36.9, 10.2))
                 .thenReturn(new RoutingService.RouteResult(20.0, 30, List.of()));
