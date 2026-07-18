@@ -19,24 +19,24 @@ public class DemandeService {
     public Demande creerDemande(Demande demande) {
         demande.setId(null);
         demande.setDateReponse(null);
-        demande.setReponse(false);
+        demande.setReponse(Demande.REPONSE_NON_TRAITER);
         demande.setDateDemande(LocalDateTime.now());
         return demandeRepository.save(demande);
     }
 
     public Demande accepterDemande(String idDemande) {
-        return traiterDemande(idDemande, true);
+        return traiterDemande(idDemande, Demande.REPONSE_ACCEPTER);
     }
 
     public Demande refuserDemande(String idDemande) {
-        return traiterDemande(idDemande, false);
+        return traiterDemande(idDemande, Demande.REPONSE_REFUSER);
     }
 
     public boolean numeroExiste(String numero) {
         return demandeRepository.existsByNumero(numero);
     }
 
-    private Demande traiterDemande(String idDemande, boolean decision) {
+    private Demande traiterDemande(String idDemande, String reponse) {
         Demande demande = demandeRepository.findById(idDemande)
                 .orElseThrow(() -> new IllegalArgumentException("Demande introuvable: " + idDemande));
 
@@ -44,7 +44,7 @@ public class DemandeService {
             throw new IllegalStateException("Demande déjà traitée");
         }
 
-        demande.setReponse(decision);
+        demande.setReponse(reponse);
         demande.setDateReponse(LocalDateTime.now());
         return demandeRepository.save(demande);
     }

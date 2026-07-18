@@ -49,6 +49,8 @@ public class CommandeService {
     private final VehicleAnalysisService vehicleAnalysisService;
     private final CommandeGeographyService commandeGeographyService;
     private final NotificationService notificationService;
+    private final RoutingService routingService;
+    private final TarificationService tarificationService;
 
     @Autowired
     public CommandeService(
@@ -57,13 +59,17 @@ public class CommandeService {
             UtilisateurRepository utilisateurRepository,
             VehicleAnalysisService vehicleAnalysisService,
             CommandeGeographyService commandeGeographyService,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            RoutingService routingService,
+            TarificationService tarificationService) {
         this.commandeRepository = commandeRepository;
         this.produitRepository = produitRepository;
         this.utilisateurRepository = utilisateurRepository;
         this.vehicleAnalysisService = vehicleAnalysisService;
         this.commandeGeographyService = commandeGeographyService;
         this.notificationService = notificationService;
+        this.routingService = routingService;
+        this.tarificationService = tarificationService;
     }
 
     public CommandeService(
@@ -78,6 +84,8 @@ public class CommandeService {
                 utilisateurRepository,
                 vehicleAnalysisService,
                 commandeGeographyService,
+                null,
+                null,
                 null);
     }
 
@@ -99,6 +107,8 @@ public class CommandeService {
 
     // Ajouter une nouvelle commande
     public Commande createCommande(Commande commande) {
+        commande.setPrix(null);
+        commande.setDistanceKm(null);
         enrichCommandeGeography(commande);
         Commande saved = commandeRepository.save(commande);
         notifierEvenementsCommande(saved, null);
@@ -133,9 +143,6 @@ public class CommandeService {
                     commande.setVehicule(resolveVehicleForCommande(commande));
                 }
                 commande.setStatut(details.getStatut());
-            }
-            if (details.getPrix() != null) {
-                commande.setPrix(details.getPrix());
             }
             if (details.getPoids() != null) {
                 commande.setPoids(details.getPoids());
@@ -197,10 +204,6 @@ public class CommandeService {
                 commande.setLongitudeDestination(details.getLongitudeDestination());
             }
 
-            if (details.getDistanceKm() != null) {
-                commande.setDistanceKm(details.getDistanceKm());
-            }
-
             if (details.getSousZoneDepart() != null) {
                 commande.setSousZoneDepart(details.getSousZoneDepart());
             }
@@ -229,6 +232,9 @@ public class CommandeService {
             // --- Met a jour la date de modification automatique ---
             commande.setMajLe(LocalDateTime.now());
             enrichCommandeGeography(commande);
+            if (shouldRecalculateQuote(details) && hasQuoteInputs(commande)) {
+                applyOfficialQuote(commande);
+            }
             Commande saved = commandeRepository.save(commande);
             notifierEvenementsCommande(saved, ancienStatut);
             return saved;
@@ -252,7 +258,9 @@ public class CommandeService {
                 // Skip technical fields that must NOT be patched
                 if (field.equals("id") ||
                         field.equals("createdAt") ||
-                        field.equals("majLe")) {
+                        field.equals("majLe") ||
+                        field.equals("prix") ||
+                        field.equals("distanceKm")) {
                     continue;
                 }
                 
@@ -265,6 +273,12 @@ public class CommandeService {
             // Always update modification date
             existing.setMajLe(LocalDateTime.now());
             enrichCommandeGeography(existing);
+            if (patch.getStatut() == Statut.confirmer && existing.getVehicule() == null) {
+                existing.setVehicule(resolveVehicleForCommande(existing));
+            }
+            if (shouldRecalculateQuote(patch) && hasQuoteInputs(existing)) {
+                applyOfficialQuote(existing);
+            }
             
             Commande saved = commandeRepository.save(existing);
             notifierEvenementsCommande(saved, ancienStatut);
@@ -610,6 +624,7 @@ public class CommandeService {
             commande.setStatut(Commande.Statut.confirmer);
             commande.setDateConfirmer(LocalDateTime.now()); // date de confirmation
             commande.setVehicule(resolveVehicleForCommande(commande));
+            applyOfficialQuote(commande);
             Commande saved = commandeRepository.save(commande);
             notifierEvenementsCommande(saved, ancienStatut);
             notifierNouvelleCommandeLivreurs(saved);
@@ -620,6 +635,7 @@ public class CommandeService {
     public Commande prepareCommandeVehicle(String id) {
         return commandeRepository.findById(id).map(commande -> {
             commande.setVehicule(resolveVehicleForCommande(commande));
+            applyOfficialQuote(commande);
             commande.setMajLe(LocalDateTime.now());
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
@@ -628,6 +644,39 @@ public class CommandeService {
     private TypeVehicule resolveVehicleForCommande(Commande commande) {
         List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
         return vehicleAnalysisService.resolveVehicleForProduits(produits);
+    }
+
+    private boolean shouldRecalculateQuote(Commande details) {
+        return details.getLatitudeDepart() != null
+                || details.getLongitudeDepart() != null
+                || details.getLatitudeDestination() != null
+                || details.getLongitudeDestination() != null
+                || details.getVehicule() != null
+                || details.getStatut() == Statut.confirmer;
+    }
+
+    private boolean hasQuoteInputs(Commande commande) {
+        return commande.getLatitudeDepart() != null
+                && commande.getLongitudeDepart() != null
+                && commande.getLatitudeDestination() != null
+                && commande.getLongitudeDestination() != null
+                && commande.getVehicule() != null;
+    }
+
+    private void applyOfficialQuote(Commande commande) {
+        if (routingService == null || tarificationService == null) {
+            return;
+        }
+        if (!hasQuoteInputs(commande)) {
+            throw new IllegalArgumentException("Coordonnees et vehicule obligatoires pour calculer le tarif");
+        }
+        RoutingService.RouteResult route = routingService.calculateRoute(
+                commande.getLatitudeDepart(),
+                commande.getLongitudeDepart(),
+                commande.getLatitudeDestination(),
+                commande.getLongitudeDestination());
+        commande.setDistanceKm(route.km());
+        commande.setPrix(tarificationService.calculate(commande.getVehicule(), route.km()));
     }
     public List<Commande> getByIdAmie(String idAmie) {
         return commandeRepository.findByIdAmie(idAmie);

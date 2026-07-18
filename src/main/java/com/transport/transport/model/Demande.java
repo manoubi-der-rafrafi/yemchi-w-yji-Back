@@ -9,6 +9,10 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document(collection = "demande")
 public class Demande {
 
+    public static final String REPONSE_NON_TRAITER = "non traiter";
+    public static final String REPONSE_ACCEPTER = "accepter";
+    public static final String REPONSE_REFUSER = "refuser";
+
     @Id
     private String id;
 
@@ -26,7 +30,7 @@ public class Demande {
     private LocalDateTime dateDemande;
 
     private LocalDateTime dateReponse;
-    private boolean reponse;
+    private String reponse = REPONSE_NON_TRAITER;
 
     public Demande() {
     }
@@ -127,11 +131,11 @@ public class Demande {
         this.dateReponse = dateReponse;
     }
 
-    public boolean isReponse() {
+    public String getReponse() {
         return reponse;
     }
 
-    public void setReponse(boolean reponse) {
+    public void setReponse(String reponse) {
         this.reponse = reponse;
     }
 }

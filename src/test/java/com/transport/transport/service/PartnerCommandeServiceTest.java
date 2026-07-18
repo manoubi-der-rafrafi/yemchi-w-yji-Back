@@ -27,6 +27,8 @@ class PartnerCommandeServiceTest {
     private UtilisateurRepository utilisateurRepository;
     private VehicleAnalysisService vehicleAnalysisService;
     private CommandeGeographyService commandeGeographyService;
+    private RoutingService routingService;
+    private TarificationService tarificationService;
     private PartnerCommandeService service;
 
     @BeforeEach
@@ -36,12 +38,16 @@ class PartnerCommandeServiceTest {
         utilisateurRepository = org.mockito.Mockito.mock(UtilisateurRepository.class);
         vehicleAnalysisService = org.mockito.Mockito.mock(VehicleAnalysisService.class);
         commandeGeographyService = new CommandeGeographyService();
+        routingService = org.mockito.Mockito.mock(RoutingService.class);
+        tarificationService = new TarificationService();
         service = new PartnerCommandeService(
                 commandeRepository,
                 produitService,
                 utilisateurRepository,
                 vehicleAnalysisService,
-                commandeGeographyService);
+                commandeGeographyService,
+                routingService,
+                tarificationService);
     }
 
     @Test
@@ -84,6 +90,8 @@ class PartnerCommandeServiceTest {
         when(produitService.createProduits(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(vehicleAnalysisService.resolveVehicleForPartnerProducts(any()))
                 .thenReturn(TypeVehicule.VEHICULE_PARTICULIER);
+        when(routingService.calculateRoute(37.0, 10.1, 36.9, 10.2))
+                .thenReturn(new RoutingService.RouteResult(20.0, 30, List.of()));
 
         var response = service.createConfirmedCommande(principal, request);
 
@@ -92,6 +100,8 @@ class PartnerCommandeServiceTest {
         assertEquals("partner-1", response.commande().getPartenaireId());
         assertEquals(Commande.Statut.confirmer, response.commande().getStatut());
         assertNotNull(response.commande().getVehicule());
+        assertEquals(20.0, response.commande().getDistanceKm());
+        assertEquals(new BigDecimal("13.500"), response.commande().getPrix());
         assertEquals(Commande.Zone.GRAND_TUNIS, response.commande().getZonePrincipaleDepart());
         assertEquals(Commande.SousZone.ARIANA, response.commande().getSousZoneDepart());
         assertEquals(Commande.Zone.GRAND_TUNIS, response.commande().getZonePrincipaleArrivee());

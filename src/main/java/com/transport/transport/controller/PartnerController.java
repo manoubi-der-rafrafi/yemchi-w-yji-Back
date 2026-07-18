@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.transport.transport.dto.partner.PartnerCommandeResponse;
 import com.transport.transport.dto.partner.PartnerCreateCommandeRequest;
 import com.transport.transport.dto.partner.PartnerTrackingResponse;
+import com.transport.transport.dto.partner.PartnerQuoteResponse;
 import com.transport.transport.security.PartnerPrincipal;
 import com.transport.transport.service.PartnerApiKeyService;
 import com.transport.transport.service.PartnerCommandeService;
@@ -51,6 +52,15 @@ public class PartnerController {
             partnerOrderNotificationService.notifyFailure(principal, request, exception);
             throw exception;
         }
+    }
+
+    @PostMapping("/quote")
+    public ResponseEntity<PartnerQuoteResponse> quote(
+            @RequestBody PartnerCreateCommandeRequest request,
+            Authentication authentication) {
+        PartnerPrincipal principal = requirePartner(authentication);
+        partnerApiKeyService.requireScope(principal, "delivery:create");
+        return ResponseEntity.ok(partnerCommandeService.quote(request));
     }
 
     @GetMapping("/external/{externalOrderId}/transporteur")
