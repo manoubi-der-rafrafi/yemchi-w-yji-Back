@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.model.Utilisateur.Statut;
+import com.transport.transport.model.UserConnectionSession;
 import com.transport.transport.repository.UtilisateurRepository;
 
 @Service
@@ -26,8 +27,12 @@ public class PresenceService {
   private long timeoutSeconds;
 
   private final UtilisateurRepository repo;
+  private final TrackingHistoryService trackingHistoryService;
 
-  public PresenceService(UtilisateurRepository repo) { this.repo = repo; }
+  public PresenceService(UtilisateurRepository repo, TrackingHistoryService trackingHistoryService) {
+    this.repo = repo;
+    this.trackingHistoryService = trackingHistoryService;
+  }
 
   /**
    * Marque un utilisateur "vivant" (lastSeen=now, online=true).
@@ -52,11 +57,11 @@ public class PresenceService {
     LocalDateTime now = LocalDateTime.now();
 
     boolean wasOnline = u.isOnline();
+    boolean expired = u.getLastSeen() == null || u.getLastSeen().isBefore(now.minusSeconds(timeoutSeconds));
     // on met à jour lastSeen à chaque ping
     u.setLastSeen(now);
 
     // s'il était offline/expiré, on (re)passe online + statut actif (sauf banni)
-    boolean expired = u.getLastSeen() == null || u.getLastSeen().isBefore(now.minusSeconds(timeoutSeconds));
     if (!wasOnline || expired) {
       u.setOnline(true);
       if (u.getStatut() != Statut.banni) {
@@ -65,6 +70,7 @@ public class PresenceService {
     }
 
     repo.save(u);
+    trackingHistoryService.heartbeat(u);
     log.debug("heartbeat: UPDATED user id={} online={} statut={}", u.getId(), u.isOnline(), u.getStatut());
     return true;
   }
@@ -109,8 +115,24 @@ public class PresenceService {
       if (u.getStatut() != Statut.banni) {
         u.setStatut(Statut.inactif);
       }
+      trackingHistoryService.closeSession(u.getId(), UserConnectionSession.EndReason.TIMEOUT);
     });
     repo.saveAll(toOff);
     log.debug("expireInactives: OFF {}", toOff.stream().map(Utilisateur::getId).toList());
+  }
+
+  public boolean logout(String principal) {
+    if (principal == null || principal.isBlank()) return false;
+    Optional<Utilisateur> opt = repo.findById(principal)
+        .or(() -> repo.findByEmailIgnoreCase(principal));
+    if (opt.isEmpty()) return false;
+
+    Utilisateur user = opt.get();
+    user.setOnline(false);
+    user.setLastSeen(LocalDateTime.now());
+    if (user.getStatut() != Statut.banni) user.setStatut(Statut.inactif);
+    repo.save(user);
+    trackingHistoryService.closeSession(user.getId(), UserConnectionSession.EndReason.LOGOUT);
+    return true;
   }
 }

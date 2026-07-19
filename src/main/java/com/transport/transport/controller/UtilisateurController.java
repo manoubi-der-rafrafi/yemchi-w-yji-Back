@@ -978,7 +978,17 @@ public static record LoginRequest(String email, String motDePasse) {}
 
         // 2) Appeler TA méthode de service (qui fait les validations et la sauvegarde)
         try {
-            Utilisateur updated = utilisateurService.updateLocalisation(userId, lat, lng);
+            Utilisateur updated = utilisateurService.updateLocalisation(
+                userId,
+                lat,
+                lng,
+                optionalDouble(body.get("accuracyMeters")),
+                optionalDouble(body.get("speedMetersPerSecond")),
+                optionalDouble(body.get("headingDegrees")),
+                optionalDouble(body.get("altitudeMeters")),
+                optionalInstant(body.get("collectedAt")),
+                optionalString(body.get("deviceId")),
+                optionalString(body.get("commandeId")));
             return ResponseEntity.ok(updated);
         } catch (ResponseStatusException ex) {
             return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
@@ -986,6 +996,21 @@ public static record LoginRequest(String email, String motDePasse) {}
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Erreur serveur: " + e.getMessage());
         }
+    }
+
+    private Double optionalDouble(Object value) {
+        if (value == null) return null;
+        try { return Double.valueOf(value.toString()); } catch (Exception ignored) { return null; }
+    }
+
+    private Instant optionalInstant(Object value) {
+        if (value == null) return null;
+        try { return Instant.parse(value.toString()); } catch (Exception ignored) { return null; }
+    }
+
+    private String optionalString(Object value) {
+        if (value == null || value.toString().isBlank()) return null;
+        return value.toString();
     }
 
     @PutMapping("/{id}/zone/{zone}")

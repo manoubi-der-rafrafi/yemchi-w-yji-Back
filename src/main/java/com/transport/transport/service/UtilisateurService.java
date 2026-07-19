@@ -1,6 +1,7 @@
 package com.transport.transport.service;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +27,7 @@ import com.transport.transport.model.Commande;
 import com.transport.transport.model.Produit;
 import com.transport.transport.dto.UserPosition;
 import com.transport.transport.model.Utilisateur;
+import com.transport.transport.model.UserConnectionSession;
 import com.transport.transport.repository.CommandeRepository;
 import com.transport.transport.repository.ProduitRepository;
 import com.transport.transport.repository.UtilisateurRepository;
@@ -42,17 +44,20 @@ public class UtilisateurService {
   private final CommandeRepository commandeRepository;
   private final ProduitRepository produitRepository;
   private final PasswordEncoder passwordEncoder;
+  private final TrackingHistoryService trackingHistoryService;
   
   
   public UtilisateurService(
       UtilisateurRepository repo,
       CommandeRepository commandeRepository,
       ProduitRepository produitRepository,
-      PasswordEncoder passwordEncoder) {
+      PasswordEncoder passwordEncoder,
+      TrackingHistoryService trackingHistoryService) {
     this.repo = repo;
     this.commandeRepository = commandeRepository;
     this.produitRepository = produitRepository;
     this.passwordEncoder = passwordEncoder;
+    this.trackingHistoryService = trackingHistoryService;
   }
 
   // ------------------- CRUD & recherche -------------------
@@ -179,6 +184,7 @@ public class UtilisateurService {
         if (u.getStatut() != Utilisateur.Statut.banni) {
           u.setStatut(Utilisateur.Statut.inactif);
         }
+        trackingHistoryService.closeSession(u.getId(), UserConnectionSession.EndReason.TIMEOUT);
       });
       repo.saveAll(list);
       log.debug("expireInactives: {} utilisateur(s) mis hors-ligne", list.size());
@@ -186,6 +192,20 @@ public class UtilisateurService {
   }
 
   public Utilisateur updateLocalisation(String userId, Double latitude, Double longitude) {
+    return updateLocalisation(userId, latitude, longitude, null, null, null, null, null, null, null);
+  }
+
+  public Utilisateur updateLocalisation(
+      String userId,
+      Double latitude,
+      Double longitude,
+      Double accuracyMeters,
+      Double speedMetersPerSecond,
+      Double headingDegrees,
+      Double altitudeMeters,
+      Instant collectedAt,
+      String deviceId,
+      String commandeId) {
         // Double-check des bornes (déjà validées par @Valid coté controller)
         if (latitude == null || longitude == null ||
             latitude < -90.0 || latitude > 90.0 ||
@@ -199,6 +219,9 @@ public class UtilisateurService {
         user.setLatitude(latitude);
         user.setLongitude(longitude);
         repo.save(user);
+        trackingHistoryService.recordPosition(
+            user, latitude, longitude, accuracyMeters, speedMetersPerSecond,
+            headingDegrees, altitudeMeters, collectedAt, deviceId, commandeId);
 
         // Par sécurité, ne retourne jamais le mot de passe
         user.setMotDePasse(null);

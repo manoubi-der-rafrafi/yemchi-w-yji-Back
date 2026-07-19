@@ -207,6 +207,7 @@ public class SecurityConfig {
             .requestMatchers("/auth/**").permitAll()
             .requestMatchers("/api/utilisateur/register").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").authenticated()
+            .requestMatchers(HttpMethod.POST, "/api/presence/logout").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/presence/**").authenticated()
             .requestMatchers("/api/admin/partners/**").authenticated()
             .requestMatchers("/api/partner/**").authenticated()
