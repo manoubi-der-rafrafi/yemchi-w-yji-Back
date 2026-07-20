@@ -203,6 +203,7 @@ public class SecurityConfig {
             .requestMatchers("/api/utilisateur/register/**").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/utilisateur/verify-email").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/utilisateur/email-verification-status").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/utilisateur/search/email").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/internal/partners/provision").permitAll()
             .requestMatchers("/auth/**").permitAll()
             .requestMatchers("/api/utilisateur/register").permitAll()
@@ -246,7 +247,8 @@ public class SecurityConfig {
     if (HttpMethod.GET.matches(method)) {
       return "/error".equals(uri)
           || "/api/utilisateur/verify-email".equals(uri)
-          || "/api/utilisateur/email-verification-status".equals(uri);
+          || "/api/utilisateur/email-verification-status".equals(uri)
+          || "/api/utilisateur/search/email".equals(uri);
     }
     return false;
   }
