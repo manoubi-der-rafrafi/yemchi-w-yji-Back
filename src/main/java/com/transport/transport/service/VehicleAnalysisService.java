@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.math.RoundingMode;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +35,8 @@ public class VehicleAnalysisService {
     private final String vehicleAnalysisAlertEmail;
     private final HttpClient httpClient;
     private final Duration vehicleAnalysisTimeout;
+    @Value("${app.vehicle-analysis.max-two-wheel-distance-km:30}")
+    private double maxTwoWheelDistanceKm = 30.0;
 
     public VehicleAnalysisService(
             MailService mailService,
@@ -52,6 +55,10 @@ public class VehicleAnalysisService {
     }
 
     public TypeVehicule resolveVehicleForProduits(List<Produit> produits) {
+        return resolveVehicleForProduits(produits, Double.NaN);
+    }
+
+    public TypeVehicule resolveVehicleForProduits(List<Produit> produits, double distanceKm) {
         List<VehicleItem> items = (produits == null ? List.<Produit>of() : produits).stream()
                 .map(produit -> new VehicleItem(
                         produit.getNom(),
@@ -62,10 +69,16 @@ public class VehicleAnalysisService {
                         produit.getProfondeur(),
                         produit.getHauteur()))
                 .toList();
-        return resolveVehicle(items);
+        return resolveVehicle(items, distanceKm);
     }
 
     public TypeVehicule resolveVehicleForPartnerProducts(List<PartnerCreateCommandeRequest.ProductItem> produits) {
+        return resolveVehicleForPartnerProducts(produits, Double.NaN);
+    }
+
+    public TypeVehicule resolveVehicleForPartnerProducts(
+            List<PartnerCreateCommandeRequest.ProductItem> produits,
+            double distanceKm) {
         List<VehicleItem> items = (produits == null ? List.<PartnerCreateCommandeRequest.ProductItem>of() : produits).stream()
                 .map(produit -> new VehicleItem(
                         produit.nom(),
@@ -76,30 +89,29 @@ public class VehicleAnalysisService {
                         produit.profondeur(),
                         produit.hauteur()))
                 .toList();
-        return resolveVehicle(items);
+        return resolveVehicle(items, distanceKm);
     }
 
-    private TypeVehicule resolveVehicle(List<VehicleItem> items) {
-        TypeVehicule externalVehicle = analyzeVehicleExternally(items);
+    private TypeVehicule resolveVehicle(List<VehicleItem> items, double distanceKm) {
+        TypeVehicule externalVehicle = analyzeVehicleExternally(items, distanceKm);
         if (externalVehicle != null) {
-            return externalVehicle;
+            return adjustForDistance(externalVehicle, distanceKm);
         }
-        throw new ResponseStatusException(
-                HttpStatus.BAD_GATEWAY,
-                "Impossible de determiner le vehicule via l'API externe.");
+        TypeVehicule fallbackVehicle = adjustForDistance(estimateVehicleLocally(items), distanceKm);
+        logger.info("Vehicle analysis fallback selected vehicle={}", fallbackVehicle);
+        return fallbackVehicle;
     }
 
-    private TypeVehicule analyzeVehicleExternally(List<VehicleItem> items) {
-        if (vehicleAnalysisUrl.isBlank() || items == null || items.isEmpty()) {
-            notifyVehicleAnalysisFailure(
-                    "Configuration manquante pour l'analyse vehicule",
-                    null,
-                    items,
-                    null);
+    private TypeVehicule analyzeVehicleExternally(List<VehicleItem> items, double distanceKm) {
+        if (items == null || items.isEmpty()) {
             return null;
         }
 
-        String prompt = buildOrderAnalysisPrompt(items);
+        if (vehicleAnalysisUrl.isBlank()) {
+            return null;
+        }
+
+        String prompt = buildOrderAnalysisPrompt(items, distanceKm);
 
         try {
             String requestBody = objectMapper.writeValueAsString(Map.of("prompt", prompt));
@@ -183,10 +195,13 @@ public class VehicleAnalysisService {
         }
     }
 
-    private String buildOrderAnalysisPrompt(List<VehicleItem> items) {
+    private String buildOrderAnalysisPrompt(List<VehicleItem> items, double distanceKm) {
         StringBuilder builder = new StringBuilder();
         builder.append("Analyze this delivery order and choose the most appropriate vehicle.\n");
         builder.append("Return JSON only with keys \"thinking\" and \"selected_vehicle\".\n");
+        if (Double.isFinite(distanceKm) && distanceKm > 0) {
+            builder.append("Road distance: ").append(distanceKm).append(" km. Distance must influence the vehicle choice.\n");
+        }
         builder.append("Products:\n");
 
         for (VehicleItem item : items) {
@@ -369,6 +384,55 @@ public class VehicleAnalysisService {
         }
 
         return null;
+    }
+
+    private TypeVehicule estimateVehicleLocally(List<VehicleItem> items) {
+        BigDecimal totalPoids = BigDecimal.ZERO;
+        BigDecimal totalVolume = BigDecimal.ZERO;
+
+        for (VehicleItem item : items == null ? List.<VehicleItem>of() : items) {
+            int quantite = item.quantite() != null && item.quantite() > 0 ? item.quantite() : 1;
+
+            if (item.poids() != null) {
+                totalPoids = totalPoids.add(item.poids().multiply(BigDecimal.valueOf(quantite)));
+            }
+
+            if (item.largeur() != null && item.profondeur() != null && item.hauteur() != null) {
+                BigDecimal volume = item.largeur()
+                        .multiply(item.profondeur())
+                        .multiply(item.hauteur())
+                        .multiply(BigDecimal.valueOf(quantite))
+                        .divide(BigDecimal.valueOf(1_000_000), 3, RoundingMode.HALF_UP);
+                totalVolume = totalVolume.add(volume);
+            }
+        }
+
+        if (lte(totalPoids, "15") && lte(totalVolume, "0.125")) {
+            return TypeVehicule.DEUX_ROUES_MOTORISES;
+        }
+        if (lte(totalPoids, "80") && lte(totalVolume, "1.000")) {
+            return TypeVehicule.VEHICULE_PARTICULIER;
+        }
+        if (lte(totalPoids, "300") && lte(totalVolume, "3.000")) {
+            return TypeVehicule.VEHICULE_UTILITAIRE_LEGER;
+        }
+        if (lte(totalPoids, "800") && lte(totalVolume, "8.000")) {
+            return TypeVehicule.FOURGON_MINIBUS;
+        }
+        return TypeVehicule.GROS_UTILITAIRE;
+    }
+
+    private TypeVehicule adjustForDistance(TypeVehicule vehicle, double distanceKm) {
+        if (vehicle == TypeVehicule.DEUX_ROUES_MOTORISES
+                && Double.isFinite(distanceKm)
+                && distanceKm > maxTwoWheelDistanceKm) {
+            return TypeVehicule.VEHICULE_PARTICULIER;
+        }
+        return vehicle;
+    }
+
+    private boolean lte(BigDecimal value, String limit) {
+        return value.compareTo(new BigDecimal(limit)) <= 0;
     }
 
     private record VehicleItem(

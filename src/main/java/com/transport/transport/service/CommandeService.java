@@ -3,11 +3,14 @@ package com.transport.transport.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -25,6 +28,7 @@ import com.transport.transport.dto.CommandeTransporteurPrincipalResponse;
 import com.transport.transport.dto.CommandeProduitsSecoursResponse;
 import com.transport.transport.dto.TransporteurSecoursCommandesResponse;
 import com.transport.transport.model.Commande;
+import com.transport.transport.model.Notification;
 import com.transport.transport.model.Commande.Statut;
 import com.transport.transport.model.Produit;
 import com.transport.transport.model.TypeVehicule;
@@ -43,16 +47,46 @@ public class CommandeService {
     private final ProduitRepository produitRepository;
     private final UtilisateurRepository utilisateurRepository;
     private final VehicleAnalysisService vehicleAnalysisService;
+    private final CommandeGeographyService commandeGeographyService;
+    private final NotificationService notificationService;
+    private final RoutingService routingService;
+    private final TarificationService tarificationService;
+
+    @Autowired
+    public CommandeService(
+            CommandeRepository commandeRepository,
+            ProduitRepository produitRepository,
+            UtilisateurRepository utilisateurRepository,
+            VehicleAnalysisService vehicleAnalysisService,
+            CommandeGeographyService commandeGeographyService,
+            NotificationService notificationService,
+            RoutingService routingService,
+            TarificationService tarificationService) {
+        this.commandeRepository = commandeRepository;
+        this.produitRepository = produitRepository;
+        this.utilisateurRepository = utilisateurRepository;
+        this.vehicleAnalysisService = vehicleAnalysisService;
+        this.commandeGeographyService = commandeGeographyService;
+        this.notificationService = notificationService;
+        this.routingService = routingService;
+        this.tarificationService = tarificationService;
+    }
 
     public CommandeService(
             CommandeRepository commandeRepository,
             ProduitRepository produitRepository,
             UtilisateurRepository utilisateurRepository,
-            VehicleAnalysisService vehicleAnalysisService) {
-        this.commandeRepository = commandeRepository;
-        this.produitRepository = produitRepository;
-        this.utilisateurRepository = utilisateurRepository;
-        this.vehicleAnalysisService = vehicleAnalysisService;
+            VehicleAnalysisService vehicleAnalysisService,
+            CommandeGeographyService commandeGeographyService) {
+        this(
+                commandeRepository,
+                produitRepository,
+                utilisateurRepository,
+                vehicleAnalysisService,
+                commandeGeographyService,
+                null,
+                null,
+                null);
     }
 
     // Historique simple d'un client
@@ -73,13 +107,18 @@ public class CommandeService {
 
     // Ajouter une nouvelle commande
     public Commande createCommande(Commande commande) {
-        return commandeRepository.save(commande);
+        clearOfficialPricing(commande);
+        enrichCommandeGeography(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, null);
+        return saved;
     }
 
     // Mettre a jour une commande existante
     public Commande updateCommande(String id, Commande details) {
         logger.info("updateCommande id={} vehicule={}", id, details.getVehicule());
         return commandeRepository.findById(id).map(commande -> {
+            Statut ancienStatut = commande.getStatut();
             // copie EXPLICITE de tous les champs que tu veux rendre modifiables
             if (details.getLocalisationDepart() != null) {
                 commande.setLocalisationDepart(details.getLocalisationDepart());
@@ -100,12 +139,8 @@ public class CommandeService {
                 if (details.getStatut() == Statut.confirmer
                         && commande.getStatut() != Statut.confirmer) {
                     commande.setDateConfirmer(LocalDateTime.now());
-                    commande.setVehicule(resolveVehicleForCommande(commande));
                 }
                 commande.setStatut(details.getStatut());
-            }
-            if (details.getPrix() != null) {
-                commande.setPrix(details.getPrix());
             }
             if (details.getPoids() != null) {
                 commande.setPoids(details.getPoids());
@@ -167,10 +202,6 @@ public class CommandeService {
                 commande.setLongitudeDestination(details.getLongitudeDestination());
             }
 
-            if (details.getDistanceKm() != null) {
-                commande.setDistanceKm(details.getDistanceKm());
-            }
-
             if (details.getSousZoneDepart() != null) {
                 commande.setSousZoneDepart(details.getSousZoneDepart());
             }
@@ -198,7 +229,13 @@ public class CommandeService {
             }
             // --- Met a jour la date de modification automatique ---
             commande.setMajLe(LocalDateTime.now());
-            return commandeRepository.save(commande);
+            enrichCommandeGeography(commande);
+            if (ancienStatut != Statut.confirmer && shouldRecalculateQuote(details) && hasQuoteInputs(commande)) {
+                applyOfficialQuote(commande);
+            }
+            Commande saved = commandeRepository.save(commande);
+            notifierEvenementsCommande(saved, ancienStatut);
+            return saved;
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
 
@@ -208,6 +245,7 @@ public class CommandeService {
     return commandeRepository.findById(id).map(new Function<Commande, Commande>() {
         @Override
         public Commande apply(Commande existing) {
+            Statut ancienStatut = existing.getStatut();
             // Copy only non-null fields from patch → existing
             BeanWrapper srcWrapper = new BeanWrapperImpl(patch);
             BeanWrapper targetWrapper = new BeanWrapperImpl(existing);
@@ -218,7 +256,23 @@ public class CommandeService {
                 // Skip technical fields that must NOT be patched
                 if (field.equals("id") ||
                         field.equals("createdAt") ||
-                        field.equals("majLe")) {
+                        field.equals("majLe") ||
+                        field.equals("prix") ||
+                        field.equals("prixLivreur") ||
+                        field.equals("prixSociete") ||
+                        field.equals("tarificationVehiculeId") ||
+                        field.equals("majorationTarifId") ||
+                        field.equals("pourcentageMajoration") ||
+                        field.equals("prixCommencementApplique") ||
+                        field.equals("prixCommencementLivreurApplique") ||
+                        field.equals("prixCommencementSocieteApplique") ||
+                        field.equals("prixParKilometreApplique") ||
+                        field.equals("prixParKilometreLivreurApplique") ||
+                        field.equals("prixParKilometreSocieteApplique") ||
+                        field.equals("dateCalculTarification") ||
+                        field.equals("tarifFallback") ||
+                        field.equals("distanceKm") ||
+                        field.equals("vehicule")) {
                     continue;
                 }
                 
@@ -230,20 +284,324 @@ public class CommandeService {
             
             // Always update modification date
             existing.setMajLe(LocalDateTime.now());
+            enrichCommandeGeography(existing);
+            if (ancienStatut != Statut.confirmer && shouldRecalculateQuote(patch) && hasQuoteInputs(existing)) {
+                applyOfficialQuote(existing);
+            }
             
-            return commandeRepository.save(existing);
+            Commande saved = commandeRepository.save(existing);
+            notifierEvenementsCommande(saved, ancienStatut);
+            return saved;
         }
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
+    private void enrichCommandeGeography(Commande commande) {
+        if (commande == null) {
+            return;
+        }
 
+        hydrateDestinationFromFriend(commande);
+        commandeGeographyService.enrichCommandeGeography(commande);
+    }
+
+    private void hydrateDestinationFromFriend(Commande commande) {
+        String friendId = commande.getIdAmie();
+        if (friendId == null || friendId.isBlank()) {
+            return;
+        }
+
+        utilisateurRepository.findById(friendId).ifPresent(friend -> {
+            if (isBlank(commande.getDestination()) && !isBlank(friend.getAdresse())) {
+                commande.setDestination(friend.getAdresse());
+            }
+            if (isBlank(commande.getTelArrivee()) && !isBlank(friend.getTelephone())) {
+                commande.setTelArrivee(friend.getTelephone());
+            }
+            if ((commande.getLatitudeDestination() == null || commande.getLongitudeDestination() == null)
+                    && hasUsableCoordinates(friend.getLatitude(), friend.getLongitude())) {
+                commande.setLatitudeDestination(friend.getLatitude());
+                commande.setLongitudeDestination(friend.getLongitude());
+            }
+            if (commande.getSousZoneArrivee() == null && friend.getSousZone() != null) {
+                commande.setSousZoneArrivee(convertSousZone(friend.getSousZone()));
+            }
+            if (commande.getZonePrincipaleArrivee() == null && friend.getZone() != null) {
+                commande.setZonePrincipaleArrivee(convertZone(friend.getZone()));
+            }
+        });
+    }
+
+    private boolean hasUsableCoordinates(Double latitude, Double longitude) {
+        if (latitude == null || longitude == null) {
+            return false;
+        }
+        return Math.abs(latitude) > 0.000001d || Math.abs(longitude) > 0.000001d;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private Commande.Zone convertZone(Utilisateur.Zone zone) {
+        return zone == null ? null : Commande.Zone.valueOf(zone.name());
+    }
+
+    private Commande.SousZone convertSousZone(Utilisateur.SousZone sousZone) {
+        return sousZone == null ? null : Commande.SousZone.valueOf(sousZone.name());
+    }
 
     // Supprimer une commande par son id
     public void deleteCommande(String  id) {
         commandeRepository.deleteById(id);
     }
     public Optional<Commande> getCommandeEnCoursByClientId(String  idClient) {
-        return commandeRepository.findByClientIdAndStatut(idClient, Commande.Statut.en_cours);
+        List<Commande> commandes = commandeRepository.findByClientIdAndStatutOrderByDateDemandeDesc(
+                idClient,
+                Commande.Statut.en_cours);
+        if (commandes.isEmpty()) {
+            return Optional.empty();
+        }
+        if (commandes.size() == 1) {
+            return Optional.of(commandes.get(0));
+        }
+
+        logger.warn(
+                "Detected {} commandes en_cours for client {}. Rebuilding a single commande.",
+                commandes.size(),
+                idClient);
+        return Optional.of(rebuildSingleCommandeEnCours(idClient, commandes));
+    }
+
+    private Commande rebuildSingleCommandeEnCours(String idClient, List<Commande> commandesEnCours) {
+        List<Commande> sortedCommandes = new ArrayList<>(commandesEnCours);
+        sortedCommandes.sort(Comparator.comparing(
+                this::commandeSortDate,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+
+        Commande commandeReference = sortedCommandes.get(0);
+        Commande rebuiltCommande = new Commande();
+        copyCommandeFields(commandeReference, rebuiltCommande);
+        for (int i = 1; i < sortedCommandes.size(); i++) {
+            mergeCommandeFields(sortedCommandes.get(i), rebuiltCommande);
+        }
+
+        rebuiltCommande.setId(null);
+        rebuiltCommande.setClientId(idClient);
+        rebuiltCommande.setStatut(Commande.Statut.en_cours);
+        rebuiltCommande.setDateDemande(
+                Objects.requireNonNullElse(commandeReference.getDateDemande(), LocalDateTime.now()));
+        rebuiltCommande.setMajLe(LocalDateTime.now());
+        enrichCommandeGeography(rebuiltCommande);
+
+        Commande savedCommande = commandeRepository.save(rebuiltCommande);
+
+        List<Produit> produits = produitRepository.findByCommandeIdIn(
+                sortedCommandes.stream().map(Commande::getId).toList());
+        if (!produits.isEmpty()) {
+            for (Produit produit : produits) {
+                produit.setCommandeId(savedCommande.getId());
+            }
+            produitRepository.saveAll(produits);
+        }
+
+        commandeRepository.deleteAll(sortedCommandes);
+        return savedCommande;
+    }
+
+    private LocalDateTime commandeSortDate(Commande commande) {
+        if (commande == null) {
+            return null;
+        }
+        if (commande.getMajLe() != null) {
+            return commande.getMajLe();
+        }
+        if (commande.getDateDemande() != null) {
+            return commande.getDateDemande();
+        }
+        return commande.getDateConfirmer();
+    }
+
+    private void copyCommandeFields(Commande source, Commande target) {
+        if (source == null || target == null) {
+            return;
+        }
+        target.setLocalisationDepart(source.getLocalisationDepart());
+        target.setDestination(source.getDestination());
+        target.setDateDebut(source.getDateDebut());
+        target.setDateFin(source.getDateFin());
+        target.setDateDemande(source.getDateDemande());
+        target.setDateConfirmer(source.getDateConfirmer());
+        target.setStatut(source.getStatut());
+        target.setPrix(source.getPrix());
+        target.setPrixLivreur(source.getPrixLivreur());
+        target.setPrixSociete(source.getPrixSociete());
+        target.setTarificationVehiculeId(source.getTarificationVehiculeId());
+        target.setMajorationTarifId(source.getMajorationTarifId());
+        target.setPourcentageMajoration(source.getPourcentageMajoration());
+        target.setPrixCommencementApplique(source.getPrixCommencementApplique());
+        target.setPrixCommencementLivreurApplique(source.getPrixCommencementLivreurApplique());
+        target.setPrixCommencementSocieteApplique(source.getPrixCommencementSocieteApplique());
+        target.setPrixParKilometreApplique(source.getPrixParKilometreApplique());
+        target.setPrixParKilometreLivreurApplique(source.getPrixParKilometreLivreurApplique());
+        target.setPrixParKilometreSocieteApplique(source.getPrixParKilometreSocieteApplique());
+        target.setDateCalculTarification(source.getDateCalculTarification());
+        target.setTarifFallback(source.getTarifFallback());
+        target.setPoids(source.getPoids());
+        target.setVolume(source.getVolume());
+        target.setVehicule(source.getVehicule());
+        target.setModePaiement(source.getModePaiement());
+        target.setInstructions(source.getInstructions());
+        target.setTelDepart(source.getTelDepart());
+        target.setTelArrivee(source.getTelArrivee());
+        target.setClientId(source.getClientId());
+        target.setTransporteurId(source.getTransporteurId());
+        target.setTransporteurSecoursId(source.getTransporteurSecoursId());
+        target.setPartenaireId(source.getPartenaireId());
+        target.setExternalBusinessId(source.getExternalBusinessId());
+        target.setExternalOrderId(source.getExternalOrderId());
+        target.setNomDepart(source.getNomDepart());
+        target.setNomArrivee(source.getNomArrivee());
+        target.setMajLe(source.getMajLe());
+        target.setIdAmie(source.getIdAmie());
+        target.setLatitudeDepart(source.getLatitudeDepart());
+        target.setLongitudeDepart(source.getLongitudeDepart());
+        target.setLatitudeDestination(source.getLatitudeDestination());
+        target.setLongitudeDestination(source.getLongitudeDestination());
+        target.setDistanceKm(source.getDistanceKm());
+        target.setSousZoneDepart(source.getSousZoneDepart());
+        target.setSousZoneArrivee(source.getSousZoneArrivee());
+        target.setZonePrincipaleDepart(source.getZonePrincipaleDepart());
+        target.setZonePrincipaleArrivee(source.getZonePrincipaleArrivee());
+        target.setQrCodeDepartScanne(source.isQrCodeDepartScanne());
+        target.setDateScanDepart(source.getDateScanDepart());
+        target.setQrCodeReceptionScanne(source.isQrCodeReceptionScanne());
+        target.setDateScanReception(source.getDateScanReception());
+        target.setRelaisTransporteurEffectue(source.getRelaisTransporteurEffectue());
+    }
+
+    private void mergeCommandeFields(Commande source, Commande target) {
+        if (source == null || target == null) {
+            return;
+        }
+        if (isBlank(target.getLocalisationDepart())) {
+            target.setLocalisationDepart(source.getLocalisationDepart());
+        }
+        if (isBlank(target.getDestination())) {
+            target.setDestination(source.getDestination());
+        }
+        if (target.getDateDebut() == null) {
+            target.setDateDebut(source.getDateDebut());
+        }
+        if (target.getDateFin() == null) {
+            target.setDateFin(source.getDateFin());
+        }
+        if (target.getDateDemande() == null) {
+            target.setDateDemande(source.getDateDemande());
+        }
+        if (target.getDateConfirmer() == null) {
+            target.setDateConfirmer(source.getDateConfirmer());
+        }
+        if (target.getPrix() == null) {
+            target.setPrix(source.getPrix());
+        }
+        if (target.getPrixLivreur() == null) target.setPrixLivreur(source.getPrixLivreur());
+        if (target.getPrixSociete() == null) target.setPrixSociete(source.getPrixSociete());
+        if (target.getTarificationVehiculeId() == null) target.setTarificationVehiculeId(source.getTarificationVehiculeId());
+        if (target.getMajorationTarifId() == null) target.setMajorationTarifId(source.getMajorationTarifId());
+        if (target.getPourcentageMajoration() == null) target.setPourcentageMajoration(source.getPourcentageMajoration());
+        if (target.getPrixCommencementApplique() == null) target.setPrixCommencementApplique(source.getPrixCommencementApplique());
+        if (target.getPrixCommencementLivreurApplique() == null) target.setPrixCommencementLivreurApplique(source.getPrixCommencementLivreurApplique());
+        if (target.getPrixCommencementSocieteApplique() == null) target.setPrixCommencementSocieteApplique(source.getPrixCommencementSocieteApplique());
+        if (target.getPrixParKilometreApplique() == null) target.setPrixParKilometreApplique(source.getPrixParKilometreApplique());
+        if (target.getPrixParKilometreLivreurApplique() == null) target.setPrixParKilometreLivreurApplique(source.getPrixParKilometreLivreurApplique());
+        if (target.getPrixParKilometreSocieteApplique() == null) target.setPrixParKilometreSocieteApplique(source.getPrixParKilometreSocieteApplique());
+        if (target.getDateCalculTarification() == null) target.setDateCalculTarification(source.getDateCalculTarification());
+        if (target.getTarifFallback() == null) target.setTarifFallback(source.getTarifFallback());
+        if (target.getPoids() == null) {
+            target.setPoids(source.getPoids());
+        }
+        if (target.getVolume() == null) {
+            target.setVolume(source.getVolume());
+        }
+        if (target.getVehicule() == null) {
+            target.setVehicule(source.getVehicule());
+        }
+        if (target.getModePaiement() == null) {
+            target.setModePaiement(source.getModePaiement());
+        }
+        if (isBlank(target.getInstructions())) {
+            target.setInstructions(source.getInstructions());
+        }
+        if (isBlank(target.getTelDepart())) {
+            target.setTelDepart(source.getTelDepart());
+        }
+        if (isBlank(target.getTelArrivee())) {
+            target.setTelArrivee(source.getTelArrivee());
+        }
+        if (isBlank(target.getTransporteurId())) {
+            target.setTransporteurId(source.getTransporteurId());
+        }
+        if (isBlank(target.getTransporteurSecoursId())) {
+            target.setTransporteurSecoursId(source.getTransporteurSecoursId());
+        }
+        if (isBlank(target.getPartenaireId())) {
+            target.setPartenaireId(source.getPartenaireId());
+        }
+        if (isBlank(target.getExternalBusinessId())) {
+            target.setExternalBusinessId(source.getExternalBusinessId());
+        }
+        if (isBlank(target.getExternalOrderId())) {
+            target.setExternalOrderId(source.getExternalOrderId());
+        }
+        if (isBlank(target.getNomDepart())) {
+            target.setNomDepart(source.getNomDepart());
+        }
+        if (isBlank(target.getNomArrivee())) {
+            target.setNomArrivee(source.getNomArrivee());
+        }
+        if (isBlank(target.getIdAmie())) {
+            target.setIdAmie(source.getIdAmie());
+        }
+        if (target.getLatitudeDepart() == null) {
+            target.setLatitudeDepart(source.getLatitudeDepart());
+        }
+        if (target.getLongitudeDepart() == null) {
+            target.setLongitudeDepart(source.getLongitudeDepart());
+        }
+        if (target.getLatitudeDestination() == null) {
+            target.setLatitudeDestination(source.getLatitudeDestination());
+        }
+        if (target.getLongitudeDestination() == null) {
+            target.setLongitudeDestination(source.getLongitudeDestination());
+        }
+        if (target.getDistanceKm() == null) {
+            target.setDistanceKm(source.getDistanceKm());
+        }
+        if (target.getSousZoneDepart() == null) {
+            target.setSousZoneDepart(source.getSousZoneDepart());
+        }
+        if (target.getSousZoneArrivee() == null) {
+            target.setSousZoneArrivee(source.getSousZoneArrivee());
+        }
+        if (target.getZonePrincipaleDepart() == null) {
+            target.setZonePrincipaleDepart(source.getZonePrincipaleDepart());
+        }
+        if (target.getZonePrincipaleArrivee() == null) {
+            target.setZonePrincipaleArrivee(source.getZonePrincipaleArrivee());
+        }
+        if (!target.isQrCodeDepartScanne() && source.isQrCodeDepartScanne()) {
+            target.setQrCodeDepartScanne(true);
+            target.setDateScanDepart(source.getDateScanDepart());
+        }
+        if (!target.isQrCodeReceptionScanne() && source.isQrCodeReceptionScanne()) {
+            target.setQrCodeReceptionScanne(true);
+            target.setDateScanReception(source.getDateScanReception());
+        }
+        if ((target.getRelaisTransporteurEffectue() == null || !target.getRelaisTransporteurEffectue())
+                && Boolean.TRUE.equals(source.getRelaisTransporteurEffectue())) {
+            target.setRelaisTransporteurEffectue(true);
+        }
     }
 
     public List<com.transport.transport.controller.CommandeController.CommandeProduitsTransporteurResponse>
@@ -297,16 +655,99 @@ public class CommandeService {
 
     public Commande confirmerCommande(String  id) {
         return commandeRepository.findById(id).map(commande -> {
+            Statut ancienStatut = commande.getStatut();
             commande.setStatut(Commande.Statut.confirmer);
             commande.setDateConfirmer(LocalDateTime.now()); // date de confirmation
-            commande.setVehicule(resolveVehicleForCommande(commande));
+            applyOfficialQuote(commande);
+            Commande saved = commandeRepository.save(commande);
+            notifierEvenementsCommande(saved, ancienStatut);
+            notifierNouvelleCommandeLivreurs(saved);
+            return saved;
+        }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+    }
+
+    public Commande prepareCommandeVehicle(String id) {
+        return commandeRepository.findById(id).map(commande -> {
+            applyOfficialQuote(commande);
+            commande.setMajLe(LocalDateTime.now());
             return commandeRepository.save(commande);
         }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
     }
 
-    private TypeVehicule resolveVehicleForCommande(Commande commande) {
+    private TypeVehicule resolveVehicleForCommande(Commande commande, double distanceKm) {
         List<Produit> produits = produitRepository.findByCommandeId(commande.getId());
-        return vehicleAnalysisService.resolveVehicleForProduits(produits);
+        return vehicleAnalysisService.resolveVehicleForProduits(produits, distanceKm);
+    }
+
+    private boolean shouldRecalculateQuote(Commande details) {
+        return details.getLatitudeDepart() != null
+                || details.getLongitudeDepart() != null
+                || details.getLatitudeDestination() != null
+                || details.getLongitudeDestination() != null
+                || details.getStatut() == Statut.confirmer;
+    }
+
+    private boolean hasQuoteInputs(Commande commande) {
+        return commande.getLatitudeDepart() != null
+                && commande.getLongitudeDepart() != null
+                && commande.getLatitudeDestination() != null
+                && commande.getLongitudeDestination() != null;
+    }
+
+    private void applyOfficialQuote(Commande commande) {
+        if (routingService == null || tarificationService == null) {
+            return;
+        }
+        if (!hasQuoteInputs(commande)) {
+            throw new IllegalArgumentException("Coordonnees obligatoires pour calculer le tarif");
+        }
+        RoutingService.RouteResult route = routingService.calculateRoute(
+                commande.getLatitudeDepart(),
+                commande.getLongitudeDepart(),
+                commande.getLatitudeDestination(),
+                commande.getLongitudeDestination());
+        commande.setDistanceKm(route.km());
+        commande.setVehicule(resolveVehicleForCommande(commande, route.km()));
+        LocalDateTime dateReference = commande.getDateConfirmer() != null
+                ? commande.getDateConfirmer()
+                : LocalDateTime.now();
+        TarificationService.TarificationResult result = tarificationService.calculateDetailed(
+                commande.getVehicule(), route.km(), dateReference);
+        commande.setPrix(result.prix());
+        commande.setPrixLivreur(result.prixLivreur());
+        commande.setPrixSociete(result.prixSociete());
+        commande.setTarificationVehiculeId(result.tarificationVehiculeId());
+        commande.setMajorationTarifId(result.majorationTarifId());
+        commande.setPourcentageMajoration(result.pourcentageMajoration());
+        commande.setPrixCommencementApplique(result.prixCommencement());
+        commande.setPrixCommencementLivreurApplique(result.prixCommencementLivreur());
+        commande.setPrixCommencementSocieteApplique(result.prixCommencementSociete());
+        commande.setPrixParKilometreApplique(result.prixParKilometre());
+        commande.setPrixParKilometreLivreurApplique(result.prixParKilometreLivreur());
+        commande.setPrixParKilometreSocieteApplique(result.prixParKilometreSociete());
+        commande.setDateCalculTarification(dateReference);
+        commande.setTarifFallback(result.tarifFallback());
+        validatePriceSplit(commande);
+    }
+
+    private void clearOfficialPricing(Commande commande) {
+        commande.setPrix(null);
+        commande.setPrixLivreur(null);
+        commande.setPrixSociete(null);
+        commande.setDistanceKm(null);
+        commande.setVehicule(null);
+        commande.setTarificationVehiculeId(null);
+        commande.setMajorationTarifId(null);
+        commande.setPourcentageMajoration(null);
+        commande.setDateCalculTarification(null);
+        commande.setTarifFallback(null);
+    }
+
+    private void validatePriceSplit(Commande commande) {
+        if (commande.getPrix() == null || commande.getPrixLivreur() == null || commande.getPrixSociete() == null
+                || commande.getPrixLivreur().add(commande.getPrixSociete()).compareTo(commande.getPrix()) != 0) {
+            throw new IllegalStateException("Le prix livreur et le prix societe doivent correspondre au prix total");
+        }
     }
     public List<Commande> getByIdAmie(String idAmie) {
         return commandeRepository.findByIdAmie(idAmie);
@@ -343,10 +784,13 @@ public Commande assignerTransporteur(String idCommande, String idTransporteur) {
         if (commande.getTransporteurId() != null) {
             throw new IllegalStateException("Commande deja assignee a un transporteur");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setTransporteurId(idTransporteur);
         commande.setMajLe(LocalDateTime.now());
         commande.setStatut(Statut.en_appelle);
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 public Commande assignerTransporteurSecours(
@@ -596,6 +1040,38 @@ public BigDecimal getSommePrixCommandesLivreesHorsLigneByTransporteur(String idT
     }
     return total;
 }
+
+public BigDecimal getSommePrixLivreurCommandesLivreesByTransporteur(String idTransporteur) {
+    return sumOfficialPart(
+            commandeRepository.findByTransporteurIdAndStatut(idTransporteur, Commande.Statut.livree),
+            true);
+}
+
+public BigDecimal getSommePrixLivreurLivreesEnLigneByTransporteur(String idTransporteur) {
+    return sumOfficialPart(
+            commandeRepository.findByTransporteurIdAndStatutAndModePaiement(
+                    idTransporteur, Commande.Statut.livree, Commande.ModePaiement.EN_LIGNE),
+            true);
+}
+
+public BigDecimal getSommePrixSocieteLivreesHorsLigneByTransporteur(String idTransporteur) {
+    return sumOfficialPart(
+            commandeRepository.findByTransporteurIdAndStatutAndModePaiementNot(
+                    idTransporteur, Commande.Statut.livree, Commande.ModePaiement.EN_LIGNE),
+            false);
+}
+
+private BigDecimal sumOfficialPart(List<Commande> commandes, boolean livreurPart) {
+    BigDecimal total = BigDecimal.ZERO;
+    for (Commande commande : commandes) {
+        BigDecimal value = livreurPart ? commande.getPrixLivreur() : commande.getPrixSociete();
+        if (value == null && commande.getPrix() != null) {
+            value = commande.getPrix().divide(new BigDecimal("2"), 3, java.math.RoundingMode.HALF_UP);
+        }
+        if (value != null) total = total.add(value);
+    }
+    return total;
+}
 public List<Commande> getCommandesEnLigneByTransporteur(String idTransporteur) {
     return commandeRepository.findByTransporteurIdAndModePaiementOrderByDateDemandeDesc(
             idTransporteur, Commande.ModePaiement.EN_LIGNE);
@@ -822,9 +1298,12 @@ public Commande demarrerAppelClient1(String id) {
         if (commande.getStatut() != Statut.en_appelle) {
             throw new IllegalStateException("Statut invalide pour demarrer l'appel client 1");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.appelle_client_1);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
@@ -833,9 +1312,12 @@ public Commande marquerAppelClient1(String id) {
         if (commande.getStatut() != Statut.appelle_client_1) {
             throw new IllegalStateException("Statut invalide pour marquer l'appel client 1");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.appelle_client_2);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
@@ -844,9 +1326,12 @@ public Commande marquerNonReponseClient1(String id) {
         if (commande.getStatut() != Statut.appelle_client_1) {
             throw new IllegalStateException("Statut invalide pour marquer la non reponse client 1");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.non_repondre_client_1);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
@@ -855,9 +1340,12 @@ public Commande marquerAppelClient2(String id) {
         if (commande.getStatut() != Statut.appelle_client_2) {
             throw new IllegalStateException("Statut invalide pour marquer l'appel client 2");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.en_route);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
@@ -866,19 +1354,108 @@ public Commande marquerNonReponseClient2(String id) {
         if (commande.getStatut() != Statut.appelle_client_2) {
             throw new IllegalStateException("Statut invalide pour marquer la non reponse client 2");
         }
+        Statut ancienStatut = commande.getStatut();
         commande.setStatut(Statut.non_repondre_client_2);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
 }
 
 public Commande marquerReceptionScanne(String id) {
     return commandeRepository.findById(id).map(commande -> {
+        Statut ancienStatut = commande.getStatut();
         commande.marquerReceptionScanne();
         commande.setStatut(Statut.livree);
         commande.setMajLe(LocalDateTime.now());
-        return commandeRepository.save(commande);
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
+}
+
+private void notifierEvenementsCommande(Commande commande, Statut ancienStatut) {
+    if (notificationService == null || commande == null || commande.getStatut() == null) {
+        return;
+    }
+
+    boolean creation = ancienStatut == null;
+    boolean statutChange = !creation && ancienStatut != commande.getStatut();
+    boolean commandeEnvoyee = commande.getStatut() == Statut.envoyee && (creation || statutChange);
+    if (commandeEnvoyee && notBlank(commande.getIdAmie())) {
+        notificationService.creer(
+                commande.getIdAmie(),
+                Notification.Type.COMMANDE_ENVOYEE,
+                "Commande recue",
+                "Une commande vous a ete envoyee.",
+                commande.getId(),
+                commande.getClientId(),
+                dataCommande(commande));
+    }
+
+    if (statutChange) {
+        notifierEtatCommande(commande, commande.getClientId());
+        if (notBlank(commande.getIdAmie()) && !Objects.equals(commande.getIdAmie(), commande.getClientId())) {
+            notifierEtatCommande(commande, commande.getIdAmie());
+        }
+    }
+}
+
+private void notifierEtatCommande(Commande commande, String destinataireId) {
+    if (!notBlank(destinataireId)) {
+        return;
+    }
+    notificationService.creer(
+            destinataireId,
+            Notification.Type.ETAT_COMMANDE,
+            "Etat de commande",
+            "La commande est maintenant: " + commande.getStatut().name(),
+            commande.getId(),
+            commande.getTransporteurId(),
+            dataCommande(commande));
+}
+
+private void notifierNouvelleCommandeLivreurs(Commande commande) {
+    if (notificationService == null || commande == null || commande.getId() == null) {
+        return;
+    }
+    utilisateurRepository.findAll()
+            .stream()
+            .filter(u -> u.getRole() == Utilisateur.Role.transporteur)
+            .filter(u -> u.getStatut() == Utilisateur.Statut.actif)
+            .filter(u -> u.getEtatIncident() == null || u.getEtatIncident() == Utilisateur.EtatIncident.RIEN)
+            .filter(u -> u.getTypeVehicule() == null || commande.getVehicule() == null
+                    || u.getTypeVehicule() == commande.getVehicule())
+            .filter(u -> commande.getSousZoneDepart() == null || commande.getSousZoneArrivee() == null
+                    || transporteurCouvreSousZones(u, commande.getSousZoneDepart(), commande.getSousZoneArrivee()))
+            .forEach(u -> notificationService.creer(
+                    u.getId(),
+                    Notification.Type.NOUVELLE_COMMANDE,
+                    "Nouvelle commande",
+                    "Une nouvelle commande peut etre traitee maintenant.",
+                    commande.getId(),
+                    commande.getClientId(),
+                    dataCommande(commande)));
+}
+
+private Map<String, String> dataCommande(Commande commande) {
+    Map<String, String> data = new LinkedHashMap<>();
+    data.put("commandeId", commande.getId());
+    if (commande.getStatut() != null) {
+        data.put("statut", commande.getStatut().name());
+    }
+    if (commande.getClientId() != null) {
+        data.put("clientId", commande.getClientId());
+    }
+    if (commande.getIdAmie() != null) {
+        data.put("idAmie", commande.getIdAmie());
+    }
+    return data;
+}
+
+private boolean notBlank(String value) {
+    return value != null && !value.isBlank();
 }
 
 

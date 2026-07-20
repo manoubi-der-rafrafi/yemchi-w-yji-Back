@@ -35,6 +35,16 @@ public ResponseEntity<Void> heartbeat(
   return ResponseEntity.noContent().build();
 }
 
+  @PostMapping("/logout")
+  public ResponseEntity<Void> logout(Authentication auth) {
+    String principal = (auth != null && auth.isAuthenticated()
+        && !"anonymousUser".equals(String.valueOf(auth.getPrincipal())))
+        ? auth.getName()
+        : null;
+    presence.logout(principal);
+    return ResponseEntity.noContent().build();
+  }
+
   @GetMapping("/{id}")
   public Map<String, Object> status(@PathVariable String id) {
     boolean online = presence.isOnline(id);

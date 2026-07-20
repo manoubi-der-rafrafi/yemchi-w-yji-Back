@@ -23,6 +23,7 @@ public class Utilisateur {
 
     private String email;
     private String motDePasse;
+    private String googleSubject;
     private String telephone;
     private String identifiant;
     private String phoneCountryCode;
@@ -87,6 +88,9 @@ public class Utilisateur {
 
     public String getMotDePasse() { return motDePasse; }
     public void setMotDePasse(String motDePasse) { this.motDePasse = motDePasse; }
+
+    public String getGoogleSubject() { return googleSubject; }
+    public void setGoogleSubject(String googleSubject) { this.googleSubject = googleSubject; }
 
     public String getTelephone() { return telephone; }
     public void setTelephone(String telephone) { this.telephone = telephone; }

@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.transport.transport.dto.partner.PartnerCommandeResponse;
 import com.transport.transport.dto.partner.PartnerCreateCommandeRequest;
 import com.transport.transport.dto.partner.PartnerTrackingResponse;
+import com.transport.transport.dto.partner.PartnerQuoteResponse;
 import com.transport.transport.security.PartnerPrincipal;
 import com.transport.transport.service.PartnerApiKeyService;
 import com.transport.transport.service.PartnerCommandeService;
+import com.transport.transport.service.PartnerOrderNotificationService;
 
 @RestController
 @RequestMapping("/api/partner/commandes")
@@ -22,12 +24,15 @@ public class PartnerController {
 
     private final PartnerCommandeService partnerCommandeService;
     private final PartnerApiKeyService partnerApiKeyService;
+    private final PartnerOrderNotificationService partnerOrderNotificationService;
 
     public PartnerController(
             PartnerCommandeService partnerCommandeService,
-            PartnerApiKeyService partnerApiKeyService) {
+            PartnerApiKeyService partnerApiKeyService,
+            PartnerOrderNotificationService partnerOrderNotificationService) {
         this.partnerCommandeService = partnerCommandeService;
         this.partnerApiKeyService = partnerApiKeyService;
+        this.partnerOrderNotificationService = partnerOrderNotificationService;
     }
 
     @PostMapping
@@ -36,7 +41,26 @@ public class PartnerController {
             Authentication authentication) {
         PartnerPrincipal principal = requirePartner(authentication);
         partnerApiKeyService.requireScope(principal, "delivery:create");
-        return ResponseEntity.ok(partnerCommandeService.createConfirmedCommande(principal, request));
+        try {
+            PartnerCommandeResponse response = partnerCommandeService.createConfirmedCommande(principal, request);
+            partnerOrderNotificationService.notifySuccess(principal, request, response);
+            return ResponseEntity.ok(response);
+        } catch (org.springframework.web.server.ResponseStatusException exception) {
+            partnerOrderNotificationService.notifyFailure(principal, request, exception);
+            throw exception;
+        } catch (RuntimeException exception) {
+            partnerOrderNotificationService.notifyFailure(principal, request, exception);
+            throw exception;
+        }
+    }
+
+    @PostMapping("/quote")
+    public ResponseEntity<PartnerQuoteResponse> quote(
+            @RequestBody PartnerCreateCommandeRequest request,
+            Authentication authentication) {
+        PartnerPrincipal principal = requirePartner(authentication);
+        partnerApiKeyService.requireScope(principal, "delivery:create");
+        return ResponseEntity.ok(partnerCommandeService.quote(request));
     }
 
     @GetMapping("/external/{externalOrderId}/transporteur")

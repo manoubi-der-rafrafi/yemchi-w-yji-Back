@@ -36,6 +36,19 @@ public class Commande {
 
     private Statut statut;
     private BigDecimal prix;
+    private BigDecimal prixLivreur;
+    private BigDecimal prixSociete;
+    private String tarificationVehiculeId;
+    private String majorationTarifId;
+    private BigDecimal pourcentageMajoration;
+    private BigDecimal prixCommencementApplique;
+    private BigDecimal prixCommencementLivreurApplique;
+    private BigDecimal prixCommencementSocieteApplique;
+    private BigDecimal prixParKilometreApplique;
+    private BigDecimal prixParKilometreLivreurApplique;
+    private BigDecimal prixParKilometreSocieteApplique;
+    private LocalDateTime dateCalculTarification;
+    private Boolean tarifFallback;
     private BigDecimal poids;
     private BigDecimal volume;
     private TypeVehicule vehicule;
@@ -230,6 +243,32 @@ public enum SousZone {
 
     public BigDecimal getPrix() { return prix; }
     public void setPrix(BigDecimal prix) { this.prix = prix; }
+    public BigDecimal getPrixLivreur() { return prixLivreur; }
+    public void setPrixLivreur(BigDecimal prixLivreur) { this.prixLivreur = prixLivreur; }
+    public BigDecimal getPrixSociete() { return prixSociete; }
+    public void setPrixSociete(BigDecimal prixSociete) { this.prixSociete = prixSociete; }
+    public String getTarificationVehiculeId() { return tarificationVehiculeId; }
+    public void setTarificationVehiculeId(String value) { this.tarificationVehiculeId = value; }
+    public String getMajorationTarifId() { return majorationTarifId; }
+    public void setMajorationTarifId(String value) { this.majorationTarifId = value; }
+    public BigDecimal getPourcentageMajoration() { return pourcentageMajoration; }
+    public void setPourcentageMajoration(BigDecimal value) { this.pourcentageMajoration = value; }
+    public BigDecimal getPrixCommencementApplique() { return prixCommencementApplique; }
+    public void setPrixCommencementApplique(BigDecimal value) { this.prixCommencementApplique = value; }
+    public BigDecimal getPrixCommencementLivreurApplique() { return prixCommencementLivreurApplique; }
+    public void setPrixCommencementLivreurApplique(BigDecimal value) { this.prixCommencementLivreurApplique = value; }
+    public BigDecimal getPrixCommencementSocieteApplique() { return prixCommencementSocieteApplique; }
+    public void setPrixCommencementSocieteApplique(BigDecimal value) { this.prixCommencementSocieteApplique = value; }
+    public BigDecimal getPrixParKilometreApplique() { return prixParKilometreApplique; }
+    public void setPrixParKilometreApplique(BigDecimal value) { this.prixParKilometreApplique = value; }
+    public BigDecimal getPrixParKilometreLivreurApplique() { return prixParKilometreLivreurApplique; }
+    public void setPrixParKilometreLivreurApplique(BigDecimal value) { this.prixParKilometreLivreurApplique = value; }
+    public BigDecimal getPrixParKilometreSocieteApplique() { return prixParKilometreSocieteApplique; }
+    public void setPrixParKilometreSocieteApplique(BigDecimal value) { this.prixParKilometreSocieteApplique = value; }
+    public LocalDateTime getDateCalculTarification() { return dateCalculTarification; }
+    public void setDateCalculTarification(LocalDateTime value) { this.dateCalculTarification = value; }
+    public Boolean getTarifFallback() { return tarifFallback; }
+    public void setTarifFallback(Boolean value) { this.tarifFallback = value; }
 
     public BigDecimal getPoids() { return poids; }
     public void setPoids(BigDecimal poids) { this.poids = poids; }

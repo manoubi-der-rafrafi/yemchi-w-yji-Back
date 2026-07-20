@@ -15,6 +15,7 @@ import com.transport.transport.dto.TransporteurInfo;
 import com.transport.transport.dto.partner.PartnerCommandeResponse;
 import com.transport.transport.dto.partner.PartnerCreateCommandeRequest;
 import com.transport.transport.dto.partner.PartnerTrackingResponse;
+import com.transport.transport.dto.partner.PartnerQuoteResponse;
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Produit;
 import com.transport.transport.model.TypeVehicule;
@@ -30,17 +31,26 @@ public class PartnerCommandeService {
     private final ProduitService produitService;
     private final UtilisateurRepository utilisateurRepository;
     private final VehicleAnalysisService vehicleAnalysisService;
+    private final CommandeGeographyService commandeGeographyService;
+    private final RoutingService routingService;
+    private final TarificationService tarificationService;
 
     @Autowired
     public PartnerCommandeService(
             CommandeRepository commandeRepository,
             ProduitService produitService,
             UtilisateurRepository utilisateurRepository,
-            VehicleAnalysisService vehicleAnalysisService) {
+            VehicleAnalysisService vehicleAnalysisService,
+            CommandeGeographyService commandeGeographyService,
+            RoutingService routingService,
+            TarificationService tarificationService) {
         this.commandeRepository = commandeRepository;
         this.produitService = produitService;
         this.utilisateurRepository = utilisateurRepository;
         this.vehicleAnalysisService = vehicleAnalysisService;
+        this.commandeGeographyService = commandeGeographyService;
+        this.routingService = routingService;
+        this.tarificationService = tarificationService;
     }
 
     public PartnerCommandeResponse createConfirmedCommande(
@@ -68,12 +78,19 @@ public class PartnerCommandeService {
         commande.setLatitudeDestination(request.arrivee().latitude());
         commande.setLongitudeDestination(request.arrivee().longitude());
         commande.setInstructions(request.instructions());
-        commande.setPrix(request.prix());
         commande.setModePaiement(request.modePaiement() != null ? request.modePaiement() : Commande.ModePaiement.EN_LIGNE);
         commande.setStatut(Commande.Statut.confirmer);
         commande.setDateConfirmer(LocalDateTime.now());
         commande.setDateDemande(LocalDateTime.now());
-        commande.setVehicule(vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits()));
+        commandeGeographyService.enrichCommandeGeography(commande);
+        RoutingService.RouteResult route = routingService.calculateRoute(
+                commande.getLatitudeDepart(),
+                commande.getLongitudeDepart(),
+                commande.getLatitudeDestination(),
+                commande.getLongitudeDestination());
+        commande.setVehicule(vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits(), route.km()));
+        commande.setDistanceKm(route.km());
+        applyPricing(commande, route.km(), commande.getDateConfirmer());
 
         Commande savedCommande = commandeRepository.save(commande);
 
@@ -96,6 +113,40 @@ public class PartnerCommandeService {
         }
 
         return new PartnerCommandeResponse(savedCommande, produitService.createProduits(produits));
+    }
+
+    public PartnerQuoteResponse quote(PartnerCreateCommandeRequest request) {
+        validateQuoteRequest(request);
+        RoutingService.RouteResult route = routingService.calculateRoute(
+                request.depart().latitude(),
+                request.depart().longitude(),
+                request.arrivee().latitude(),
+                request.arrivee().longitude());
+        TypeVehicule vehicule = vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits(), route.km());
+        return new PartnerQuoteResponse(
+                vehicule,
+                route.km(),
+                route.min(),
+                tarificationService.calculate(vehicule, route.km()));
+    }
+
+    private void applyPricing(Commande commande, double distanceKm, LocalDateTime reference) {
+        TarificationService.TarificationResult result = tarificationService.calculateDetailed(
+                commande.getVehicule(), distanceKm, reference);
+        commande.setPrix(result.prix());
+        commande.setPrixLivreur(result.prixLivreur());
+        commande.setPrixSociete(result.prixSociete());
+        commande.setTarificationVehiculeId(result.tarificationVehiculeId());
+        commande.setMajorationTarifId(result.majorationTarifId());
+        commande.setPourcentageMajoration(result.pourcentageMajoration());
+        commande.setPrixCommencementApplique(result.prixCommencement());
+        commande.setPrixCommencementLivreurApplique(result.prixCommencementLivreur());
+        commande.setPrixCommencementSocieteApplique(result.prixCommencementSociete());
+        commande.setPrixParKilometreApplique(result.prixParKilometre());
+        commande.setPrixParKilometreLivreurApplique(result.prixParKilometreLivreur());
+        commande.setPrixParKilometreSocieteApplique(result.prixParKilometreSociete());
+        commande.setDateCalculTarification(reference);
+        commande.setTarifFallback(result.tarifFallback());
     }
 
     public TransporteurInfo getTransporteurByExternalOrderId(PartnerPrincipal principal, String externalOrderId) {
@@ -152,22 +203,36 @@ public class PartnerCommandeService {
     }
 
     private void validateCreateRequest(PartnerCreateCommandeRequest request) {
+        validateQuoteRequest(request);
         if (request == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Payload commande obligatoire");
         }
         if (request.externalOrderId() == null || request.externalOrderId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "externalOrderId obligatoire");
         }
-        if (request.depart() == null || request.arrivee() == null) {
+    }
+
+    private void validateQuoteRequest(PartnerCreateCommandeRequest request) {
+        if (request == null || request.depart() == null || request.arrivee() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Depart et arrivee obligatoires");
         }
         if (request.depart().adresse() == null || request.depart().adresse().isBlank()
                 || request.arrivee().adresse() == null || request.arrivee().adresse().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Adresses depart/arrivee obligatoires");
         }
+        if (!hasValidCoordinates(request.depart().latitude(), request.depart().longitude())
+                || !hasValidCoordinates(request.arrivee().latitude(), request.arrivee().longitude())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Coordonnees depart/arrivee obligatoires");
+        }
         if (request.produits() == null || request.produits().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Au moins un produit est obligatoire");
         }
+    }
+
+    private boolean hasValidCoordinates(Double latitude, Double longitude) {
+        return latitude != null && longitude != null
+                && latitude >= -90 && latitude <= 90
+                && longitude >= -180 && longitude <= 180;
     }
 
     private TypeVehicule estimateVehicule(List<PartnerCreateCommandeRequest.ProductItem> produits) {

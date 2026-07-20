@@ -84,9 +84,12 @@ public class SecurityConfig {
           String role = (u.getRole() != null) ? u.getRole().name() : "CLIENT";
           role = role.toUpperCase().replaceFirst("^ROLE_", "");
           boolean disabled = (u.getStatut() == Utilisateur.Statut.banni);
+          String encodedPassword = (u.getMotDePasse() != null && !u.getMotDePasse().isBlank())
+              ? u.getMotDePasse()
+              : "{bcrypt}$2a$10$w92HHSvfDc7mW6cU2rQj9u4KjUIBWoZdyRMUi5uqJmqJt5E9WC42u";
 
           return User.withUsername(u.getEmail())
-              .password(u.getMotDePasse())
+              .password(encodedPassword)
               .roles(role)
               .accountExpired(false)
               .accountLocked(false)
@@ -195,14 +198,17 @@ public class SecurityConfig {
             .requestMatchers("/error").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/login/google").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/google").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/email").permitAll()
             .requestMatchers("/api/utilisateur/register/**").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/utilisateur/verify-email").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/utilisateur/email-verification-status").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/utilisateur/search/email").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/internal/partners/provision").permitAll()
             .requestMatchers("/auth/**").permitAll()
             .requestMatchers("/api/utilisateur/register").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").authenticated()
+            .requestMatchers(HttpMethod.POST, "/api/presence/logout").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/presence/**").authenticated()
             .requestMatchers("/api/admin/partners/**").authenticated()
             .requestMatchers("/api/partner/**").authenticated()
@@ -233,6 +239,7 @@ public class SecurityConfig {
       return "/api/utilisateur/login".equals(uri)
           || "/api/utilisateur/login/google".equals(uri)
           || "/api/utilisateur/register".equals(uri)
+          || "/api/utilisateur/register/google".equals(uri)
           || "/api/utilisateur/register/email".equals(uri)
           || "/api/utilisateur/register/complete".equals(uri)
           || "/error".equals(uri);
@@ -240,7 +247,8 @@ public class SecurityConfig {
     if (HttpMethod.GET.matches(method)) {
       return "/error".equals(uri)
           || "/api/utilisateur/verify-email".equals(uri)
-          || "/api/utilisateur/email-verification-status".equals(uri);
+          || "/api/utilisateur/email-verification-status".equals(uri)
+          || "/api/utilisateur/search/email".equals(uri);
     }
     return false;
   }
