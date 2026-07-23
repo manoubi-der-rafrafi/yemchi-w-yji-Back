@@ -79,6 +79,16 @@ public class PartnerCommandeService {
         commande.setLongitudeDestination(request.arrivee().longitude());
         commande.setInstructions(request.instructions());
         commande.setModePaiement(request.modePaiement() != null ? request.modePaiement() : Commande.ModePaiement.EN_LIGNE);
+        commande.setSourceCommande(Commande.SourceCommande.B2C);
+        commande.setEncaisseurInitial(
+                commande.getModePaiement() == Commande.ModePaiement.EN_LIGNE
+                        ? Commande.EncaisseurInitial.PARTENAIRE
+                        : Commande.EncaisseurInitial.LIVREUR);
+        commande.setStatutReglement(Commande.StatutReglement.NON_REGLE);
+        commande.setStatutEncaissementSociete(
+                commande.getModePaiement() == Commande.ModePaiement.EN_LIGNE
+                        ? Commande.StatutEncaissementSociete.NON_APPLICABLE
+                        : Commande.StatutEncaissementSociete.EN_ATTENTE);
         commande.setStatut(Commande.Statut.confirmer);
         commande.setDateConfirmer(LocalDateTime.now());
         commande.setDateDemande(LocalDateTime.now());
@@ -91,6 +101,18 @@ public class PartnerCommandeService {
         commande.setVehicule(vehicleAnalysisService.resolveVehicleForPartnerProducts(request.produits(), route.km()));
         commande.setDistanceKm(route.km());
         applyPricing(commande, route.km(), commande.getDateConfirmer());
+        validateConfirmedDeliveryPrice(request.prixLivraisonAttendu(), commande.getPrix());
+        BigDecimal prixProduits = calculateProductsTotal(request.produits());
+        if (request.prixProduitsPartenaire() != null
+                && request.prixProduitsPartenaire().subtract(prixProduits).abs()
+                        .compareTo(new BigDecimal("0.001")) > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Le total des produits ne correspond pas aux lignes de la commande");
+        }
+        commande.setPrixProduitsPartenaire(prixProduits);
+        commande.setPrixLivraison(commande.getPrix());
+        commande.setPrixTotalClient(prixProduits.add(commande.getPrix()));
 
         Commande savedCommande = commandeRepository.save(commande);
 
@@ -98,9 +120,13 @@ public class PartnerCommandeService {
         for (PartnerCreateCommandeRequest.ProductItem item : request.produits()) {
             Produit produit = new Produit();
             produit.setCommandeId(savedCommande.getId());
+            produit.setExternalProductId(item.externalProductId());
             produit.setNom(item.nom());
             produit.setType(item.type());
             produit.setQuantite(item.quantite() != null ? item.quantite() : 1);
+            produit.setPrix(item.prixUnitaire());
+            produit.setPrixTotalLigne(item.prixUnitaire().multiply(
+                    BigDecimal.valueOf(produit.getQuantite())));
             produit.setPoids(item.poids());
             produit.setLargeur(item.largeur());
             produit.setProfondeur(item.profondeur());
@@ -210,6 +236,14 @@ public class PartnerCommandeService {
         if (request.externalOrderId() == null || request.externalOrderId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "externalOrderId obligatoire");
         }
+        if (request.prixProduitsPartenaire() == null
+                || request.prixProduitsPartenaire().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "prixProduitsPartenaire obligatoire");
+        }
+        if (request.prixLivraisonAttendu() == null
+                || request.prixLivraisonAttendu().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "prixLivraisonAttendu obligatoire");
+        }
     }
 
     private void validateQuoteRequest(PartnerCreateCommandeRequest request) {
@@ -226,6 +260,26 @@ public class PartnerCommandeService {
         }
         if (request.produits() == null || request.produits().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Au moins un produit est obligatoire");
+        }
+    }
+
+    private BigDecimal calculateProductsTotal(List<PartnerCreateCommandeRequest.ProductItem> produits) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (PartnerCreateCommandeRequest.ProductItem item : produits) {
+            if (item.prixUnitaire() == null || item.prixUnitaire().compareTo(BigDecimal.ZERO) < 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "prixUnitaire produit obligatoire");
+            }
+            int quantite = item.quantite() != null && item.quantite() > 0 ? item.quantite() : 1;
+            total = total.add(item.prixUnitaire().multiply(BigDecimal.valueOf(quantite)));
+        }
+        return total.setScale(3, RoundingMode.HALF_UP);
+    }
+
+    private void validateConfirmedDeliveryPrice(BigDecimal expected, BigDecimal calculated) {
+        if (expected.subtract(calculated).abs().compareTo(new BigDecimal("0.001")) > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Le tarif de livraison a change. Nouveau tarif: " + calculated);
         }
     }
 

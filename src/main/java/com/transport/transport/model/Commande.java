@@ -38,6 +38,14 @@ public class Commande {
     private BigDecimal prix;
     private BigDecimal prixLivreur;
     private BigDecimal prixSociete;
+    private BigDecimal prixProduitsPartenaire;
+    private BigDecimal prixLivraison;
+    private BigDecimal prixTotalClient;
+    private SourceCommande sourceCommande;
+    private EncaisseurInitial encaisseurInitial;
+    private StatutReglement statutReglement;
+    private StatutEncaissementSociete statutEncaissementSociete;
+    private LocalDateTime dateEncaissementSociete;
     private String tarificationVehiculeId;
     private String majorationTarifId;
     private BigDecimal pourcentageMajoration;
@@ -149,6 +157,29 @@ public enum ModePaiement {
     @JsonProperty("arrivee")  ARRIVEE
 }
 
+    public enum SourceCommande {
+        C2C,
+        B2C
+    }
+
+    public enum EncaisseurInitial {
+        PARTENAIRE,
+        LIVREUR,
+        SOCIETE
+    }
+
+    public enum StatutReglement {
+        NON_REGLE,
+        PARTIELLEMENT_REGLE,
+        REGLE
+    }
+
+    public enum StatutEncaissementSociete {
+        NON_APPLICABLE,
+        EN_ATTENTE,
+        RECU
+    }
+
 // --- Enum pour les grandes zones (régions principales) ---
 public enum Zone {
     GRAND_TUNIS,
@@ -247,6 +278,22 @@ public enum SousZone {
     public void setPrixLivreur(BigDecimal prixLivreur) { this.prixLivreur = prixLivreur; }
     public BigDecimal getPrixSociete() { return prixSociete; }
     public void setPrixSociete(BigDecimal prixSociete) { this.prixSociete = prixSociete; }
+    public BigDecimal getPrixProduitsPartenaire() { return prixProduitsPartenaire; }
+    public void setPrixProduitsPartenaire(BigDecimal value) { this.prixProduitsPartenaire = value; }
+    public BigDecimal getPrixLivraison() { return prixLivraison; }
+    public void setPrixLivraison(BigDecimal value) { this.prixLivraison = value; }
+    public BigDecimal getPrixTotalClient() { return prixTotalClient; }
+    public void setPrixTotalClient(BigDecimal value) { this.prixTotalClient = value; }
+    public SourceCommande getSourceCommande() { return sourceCommande; }
+    public void setSourceCommande(SourceCommande value) { this.sourceCommande = value; }
+    public EncaisseurInitial getEncaisseurInitial() { return encaisseurInitial; }
+    public void setEncaisseurInitial(EncaisseurInitial value) { this.encaisseurInitial = value; }
+    public StatutReglement getStatutReglement() { return statutReglement; }
+    public void setStatutReglement(StatutReglement value) { this.statutReglement = value; }
+    public StatutEncaissementSociete getStatutEncaissementSociete() { return statutEncaissementSociete; }
+    public void setStatutEncaissementSociete(StatutEncaissementSociete value) { this.statutEncaissementSociete = value; }
+    public LocalDateTime getDateEncaissementSociete() { return dateEncaissementSociete; }
+    public void setDateEncaissementSociete(LocalDateTime value) { this.dateEncaissementSociete = value; }
     public String getTarificationVehiculeId() { return tarificationVehiculeId; }
     public void setTarificationVehiculeId(String value) { this.tarificationVehiculeId = value; }
     public String getMajorationTarifId() { return majorationTarifId; }

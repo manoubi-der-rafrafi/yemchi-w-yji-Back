@@ -27,9 +27,11 @@ class VehicleAnalysisServiceTest {
 
         TypeVehicule selected = service.resolveVehicleForPartnerProducts(List.of(
                 new PartnerCreateCommandeRequest.ProductItem(
+                        "product-1",
                         "Confiture de Cerise Noire",
                         "Confitures & Compotes",
                         1,
+                        BigDecimal.ONE,
                         BigDecimal.ONE,
                         BigDecimal.TEN,
                         BigDecimal.TEN,
@@ -54,7 +56,7 @@ class VehicleAnalysisServiceTest {
 
         TypeVehicule selected = service.resolveVehicleForPartnerProducts(List.of(
                 new PartnerCreateCommandeRequest.ProductItem(
-                        "Petit colis", "colis", 1, BigDecimal.ONE,
+                        "product-1", "Petit colis", "colis", 1, BigDecimal.ONE, BigDecimal.ONE,
                         BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN,
                         null, null, null, null)), 31);
 

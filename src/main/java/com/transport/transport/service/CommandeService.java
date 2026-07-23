@@ -701,18 +701,14 @@ public class CommandeService {
         if (!hasQuoteInputs(commande)) {
             throw new IllegalArgumentException("Coordonnees obligatoires pour calculer le tarif");
         }
-        RoutingService.RouteResult route = routingService.calculateRoute(
-                commande.getLatitudeDepart(),
-                commande.getLongitudeDepart(),
-                commande.getLatitudeDestination(),
-                commande.getLongitudeDestination());
-        commande.setDistanceKm(route.km());
-        commande.setVehicule(resolveVehicleForCommande(commande, route.km()));
+        double distanceKm = calculateDistanceKm(commande);
+        commande.setDistanceKm(distanceKm);
+        commande.setVehicule(resolveVehicleForCommande(commande, distanceKm));
         LocalDateTime dateReference = commande.getDateConfirmer() != null
                 ? commande.getDateConfirmer()
                 : LocalDateTime.now();
         TarificationService.TarificationResult result = tarificationService.calculateDetailed(
-                commande.getVehicule(), route.km(), dateReference);
+                commande.getVehicule(), distanceKm, dateReference);
         commande.setPrix(result.prix());
         commande.setPrixLivreur(result.prixLivreur());
         commande.setPrixSociete(result.prixSociete());
@@ -728,6 +724,59 @@ public class CommandeService {
         commande.setDateCalculTarification(dateReference);
         commande.setTarifFallback(result.tarifFallback());
         validatePriceSplit(commande);
+    }
+
+    private double calculateDistanceKm(Commande commande) {
+        try {
+            RoutingService.RouteResult route = routingService.calculateRoute(
+                commande.getLatitudeDepart(),
+                commande.getLongitudeDepart(),
+                commande.getLatitudeDestination(),
+                commande.getLongitudeDestination());
+            return route.km();
+        } catch (RuntimeException exception) {
+            double fallbackDistanceKm = calculateHaversineDistanceKm(commande);
+            logger.warn(
+                    "Route service unavailable for commande id={}, using fallback distanceKm={}",
+                    commande.getId(),
+                    fallbackDistanceKm,
+                    exception);
+            return fallbackDistanceKm;
+        }
+    }
+
+    private double calculateHaversineDistanceKm(Commande commande) {
+        double lat1 = requireLatitude(commande.getLatitudeDepart(), "latitude depart");
+        double lon1 = requireLongitude(commande.getLongitudeDepart(), "longitude depart");
+        double lat2 = requireLatitude(commande.getLatitudeDestination(), "latitude destination");
+        double lon2 = requireLongitude(commande.getLongitudeDestination(), "longitude destination");
+
+        double earthRadiusKm = 6371.0088;
+        double deltaLat = Math.toRadians(lat2 - lat1);
+        double deltaLon = Math.toRadians(lon2 - lon1);
+        double startLat = Math.toRadians(lat1);
+        double endLat = Math.toRadians(lat2);
+
+        double a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2)
+                + Math.cos(startLat) * Math.cos(endLat)
+                * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        double distanceKm = earthRadiusKm * c;
+        return Math.max(0.001, Math.round(distanceKm * 1000.0) / 1000.0);
+    }
+
+    private double requireLatitude(Double value, String label) {
+        if (value == null || !Double.isFinite(value) || value < -90 || value > 90) {
+            throw new IllegalArgumentException("Coordonnee invalide: " + label);
+        }
+        return value;
+    }
+
+    private double requireLongitude(Double value, String label) {
+        if (value == null || !Double.isFinite(value) || value < -180 || value > 180) {
+            throw new IllegalArgumentException("Coordonnee invalide: " + label);
+        }
+        return value;
     }
 
     private void clearOfficialPricing(Commande commande) {

@@ -71,13 +71,17 @@ class PartnerCommandeServiceTest {
                 "ORDER-1001",
                 "fragile",
                 BigDecimal.valueOf(55),
+                BigDecimal.valueOf(55),
+                new BigDecimal("13.500"),
                 Commande.ModePaiement.EN_LIGNE,
                 new PartnerCreateCommandeRequest.ContactPoint("Boutique", "111", "Depart", 37.0, 10.1),
                 new PartnerCreateCommandeRequest.ContactPoint("Client", "222", "Arrivee", 36.9, 10.2),
                 List.of(new PartnerCreateCommandeRequest.ProductItem(
+                        "product-1",
                         "Chaise",
                         "meuble",
                         1,
+                        BigDecimal.valueOf(55),
                         BigDecimal.valueOf(12),
                         BigDecimal.valueOf(50),
                         BigDecimal.valueOf(50),
@@ -107,9 +111,14 @@ class PartnerCommandeServiceTest {
         assertEquals("12", response.commande().getExternalBusinessId());
         assertEquals("partner-1", response.commande().getPartenaireId());
         assertEquals(Commande.Statut.confirmer, response.commande().getStatut());
+        assertEquals(
+                Commande.StatutEncaissementSociete.NON_APPLICABLE,
+                response.commande().getStatutEncaissementSociete());
         assertNotNull(response.commande().getVehicule());
         assertEquals(20.0, response.commande().getDistanceKm());
         assertEquals(new BigDecimal("13.500"), response.commande().getPrix());
+        assertEquals(new BigDecimal("55.000"), response.commande().getPrixProduitsPartenaire());
+        assertEquals(new BigDecimal("68.500"), response.commande().getPrixTotalClient());
         assertEquals(Commande.Zone.GRAND_TUNIS, response.commande().getZonePrincipaleDepart());
         assertEquals(Commande.SousZone.ARIANA, response.commande().getSousZoneDepart());
         assertEquals(Commande.Zone.GRAND_TUNIS, response.commande().getZonePrincipaleArrivee());
@@ -117,5 +126,6 @@ class PartnerCommandeServiceTest {
         Produit produit = response.produits().get(0);
         assertEquals("cmd-1", produit.getCommandeId());
         assertEquals("Chaise", produit.getNom());
+        assertEquals(BigDecimal.valueOf(55), produit.getPrix());
     }
 }

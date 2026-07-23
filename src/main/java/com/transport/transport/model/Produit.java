@@ -31,6 +31,8 @@ public class Produit {
     private String image3;
 
     private BigDecimal prix;
+    private BigDecimal prixTotalLigne;
+    private String externalProductId;
 
     /** Référence à la commande (ID Mongo) au lieu de @ManyToOne */
     private String commandeId; // Commande.id
@@ -83,6 +85,10 @@ public class Produit {
 
     public BigDecimal getPrix() { return prix; }
     public void setPrix(BigDecimal prix) { this.prix = prix; }
+    public BigDecimal getPrixTotalLigne() { return prixTotalLigne; }
+    public void setPrixTotalLigne(BigDecimal prixTotalLigne) { this.prixTotalLigne = prixTotalLigne; }
+    public String getExternalProductId() { return externalProductId; }
+    public void setExternalProductId(String externalProductId) { this.externalProductId = externalProductId; }
 
     public String getCommandeId() { return commandeId; }
     public void setCommandeId(String commandeId) { this.commandeId = commandeId; }

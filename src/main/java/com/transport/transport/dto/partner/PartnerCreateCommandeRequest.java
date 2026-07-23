@@ -10,6 +10,8 @@ public record PartnerCreateCommandeRequest(
         String externalOrderId,
         String instructions,
         BigDecimal prix,
+        BigDecimal prixProduitsPartenaire,
+        BigDecimal prixLivraisonAttendu,
         Commande.ModePaiement modePaiement,
         ContactPoint depart,
         ContactPoint arrivee,
@@ -24,9 +26,11 @@ public record PartnerCreateCommandeRequest(
             Double longitude) {}
 
     public record ProductItem(
+            String externalProductId,
             String nom,
             String type,
             Integer quantite,
+            BigDecimal prixUnitaire,
             BigDecimal poids,
             BigDecimal largeur,
             BigDecimal profondeur,

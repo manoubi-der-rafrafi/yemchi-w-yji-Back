@@ -3,6 +3,7 @@ package com.transport.transport.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,9 +16,13 @@ import org.junit.jupiter.api.Test;
 
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.Produit;
+import com.transport.transport.model.TypeVehicule;
 import com.transport.transport.repository.CommandeRepository;
 import com.transport.transport.repository.ProduitRepository;
 import com.transport.transport.repository.UtilisateurRepository;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 class CommandeServiceTest {
 
@@ -100,5 +105,59 @@ class CommandeServiceTest {
 
         verify(produitRepository).saveAll(List.of(produitA, produitB));
         verify(commandeRepository).deleteAll(List.of(newer, older));
+    }
+
+    @Test
+    void prepareCommandeVehicleUsesFallbackDistanceWhenRoutingServiceFails() {
+        RoutingService routingService = org.mockito.Mockito.mock(RoutingService.class);
+        TarificationService tarificationService = org.mockito.Mockito.mock(TarificationService.class);
+        CommandeService quoteService = new CommandeService(
+                commandeRepository,
+                produitRepository,
+                utilisateurRepository,
+                vehicleAnalysisService,
+                commandeGeographyService,
+                null,
+                routingService,
+                tarificationService);
+
+        Commande commande = new Commande();
+        commande.setId("cmd-route-fallback");
+        commande.setLatitudeDepart(36.8689);
+        commande.setLongitudeDepart(10.3417);
+        commande.setLatitudeDestination(36.8840);
+        commande.setLongitudeDestination(10.1658);
+
+        when(commandeRepository.findById("cmd-route-fallback")).thenReturn(java.util.Optional.of(commande));
+        when(commandeRepository.save(any(Commande.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(routingService.calculateRoute(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenThrow(new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Service de routage indisponible"));
+        when(vehicleAnalysisService.resolveVehicleForProduits(any(), anyDouble()))
+                .thenReturn(TypeVehicule.DEUX_ROUES_MOTORISES);
+        when(tarificationService.calculateDetailed(
+                org.mockito.Mockito.eq(TypeVehicule.DEUX_ROUES_MOTORISES),
+                anyDouble(),
+                any()))
+                .thenReturn(new TarificationService.TarificationResult(
+                        new BigDecimal("10.000"),
+                        new BigDecimal("5.000"),
+                        new BigDecimal("5.000"),
+                        new BigDecimal("5.000"),
+                        new BigDecimal("2.500"),
+                        new BigDecimal("2.500"),
+                        new BigDecimal("0.300"),
+                        new BigDecimal("0.150"),
+                        new BigDecimal("0.150"),
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        true));
+
+        Commande result = quoteService.prepareCommandeVehicle("cmd-route-fallback");
+
+        assertEquals(TypeVehicule.DEUX_ROUES_MOTORISES, result.getVehicule());
+        assertEquals(new BigDecimal("10.000"), result.getPrix());
+        assertNotNull(result.getDistanceKm());
+        org.junit.jupiter.api.Assertions.assertTrue(result.getDistanceKm() > 0);
     }
 }
