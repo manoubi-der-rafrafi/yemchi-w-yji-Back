@@ -337,6 +337,15 @@ public class VehicleAnalysisService {
             }
         }
 
+        if (node.has("value") && node.get("value").isArray()) {
+            for (JsonNode child : node.get("value")) {
+                String nested = extractSelectedVehicle(child);
+                if (!nested.isBlank()) {
+                    return nested;
+                }
+            }
+        }
+
         return "";
     }
 

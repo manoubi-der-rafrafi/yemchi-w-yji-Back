@@ -234,13 +234,17 @@ public class CommandeController {
     }
 
     @PutMapping("/{id}/prepare-vehicle")
-    public ResponseEntity<Commande> prepareCommandeVehicle(@PathVariable String id, Authentication authentication) {
+    public ResponseEntity<?> prepareCommandeVehicle(@PathVariable String id, Authentication authentication) {
         try {
             commandeService.getCommandeById(id).ifPresent(c -> authorizationService.requireCommandeAccess(c, authentication));
             Commande commande = commandeService.prepareCommandeVehicle(id);
             return ResponseEntity.ok(commande);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            String message = e.getMessage() != null ? e.getMessage() : "Impossible de preparer le vehicule";
+            if (message.toLowerCase().contains("introuvable")) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.badRequest().body(message);
         }
     }
 
