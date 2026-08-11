@@ -86,83 +86,107 @@ public class MailService {
           <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Verification de votre email</title>
+            <title>Vérification de votre email</title>
           </head>
-          <body style="margin: 0; padding: 0; background-color: #eef2f7; font-family: Arial, Helvetica, sans-serif; color: #0f172a;">
-            <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; mso-hide: all;">
-              Confirmez votre adresse email pour activer votre compte.
+          <body style="margin:0;padding:0;background-color:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;">
+            <!-- Preview text -->
+            <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">
+              Confirmez votre adresse email pour activer votre compte Yemchi W Yji.
             </div>
-            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="background-color: #eef2f7; margin: 0; padding: 32px 12px;">
+
+            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0"
+                   style="background-color:#f5f5f5;padding:32px 12px;">
               <tr>
                 <td align="center">
-                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="max-width: 640px;">
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0"
+                         style="max-width:600px;">
+
+                    <!-- ── Header: gradient + logo ── -->
                     <tr>
-                      <td style="padding-bottom: 16px; text-align: center; font-size: 12px; color: #64748b; letter-spacing: 0.12em; text-transform: uppercase;">
-                        Yemchi W Yji
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style="background-color: #0f172a; background-image: linear-gradient(135deg, #0f172a 0%%, #1e293b 100%%); border-radius: 24px 24px 0 0; padding: 0 32px 32px 32px; color: #ffffff;">
-                        <div style="height: 6px; background: linear-gradient(90deg, #1d4ed8 0%%, #2563eb 48%%, #c58a1a 100%%); border-radius: 24px 24px 0 0;"></div>
-                        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0">
-                          <tr>
-                            <td align="left" style="padding-top: 24px; padding-bottom: 24px;">
-                              <span style="display: inline-block; width: 72px; height: 6px; border-radius: 999px; background-color: #c58a1a;"></span>
-                            </td>
-                            <td align="right" style="padding-top: 24px; padding-bottom: 24px;">
-                              <span style="display: inline-block; padding: 8px 14px; border-radius: 999px; background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #cbd5e1;">
-                                VERIFICATION
-                              </span>
-                            </td>
-                          </tr>
-                        </table>
-                        <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8;">
-                          YEMCHI W YJI
-                        </p>
-                        <h1 style="margin: 0 0 14px 0; font-size: 34px; line-height: 1.15; font-weight: 800; color: #f8fafc;">
-                          Confirmez votre adresse email
+                      <td style="background:linear-gradient(135deg,#FFA726 0%%,#FF5722 100%%);
+                                 border-radius:20px 20px 0 0;padding:36px 32px 28px 32px;text-align:center;">
+                        <div style="display:inline-block;width:80px;height:80px;border-radius:50%%;
+                                    background:rgba(255,255,255,0.15);
+                                    border:2px solid rgba(255,255,255,0.3);
+                                    line-height:80px;margin-bottom:16px;">
+                          <span style="font-size:34px;">✉️</span>
+                        </div>
+                        <h1 style="margin:0 0 8px 0;font-size:26px;font-weight:800;color:#ffffff;
+                                   text-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                          Yemchi W Yji
                         </h1>
-                        <p style="margin: 0; font-size: 17px; line-height: 1.7; color: #cbd5e1;">
-                          Un dernier clic suffit pour finaliser l'activation de votre compte.
+                        <p style="margin:0;font-size:13px;font-weight:600;letter-spacing:0.1em;
+                                  text-transform:uppercase;color:rgba(255,255,255,0.85);">
+                          Vérification de votre email
                         </p>
                       </td>
                     </tr>
+
+                    <!-- ── Body ── -->
                     <tr>
-                      <td style="background-color: #ffffff; border-radius: 0 0 24px 24px; padding: 32px; box-shadow: 0 24px 50px rgba(15, 23, 42, 0.08); border: 1px solid #dbe3ee;">
-                        <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.7; color: #0f172a;">
+                      <td style="background:#ffffff;padding:36px 32px;
+                                 border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;">
+
+                        <p style="margin:0 0 18px 0;font-size:17px;font-weight:700;color:#1a1a1a;">
                           Bonjour,
                         </p>
-                        <p style="margin: 0 0 28px 0; font-size: 16px; line-height: 1.8; color: #475569;">
+                        <p style="margin:0 0 28px 0;font-size:15px;line-height:1.8;color:#444444;">
                           %s
                         </p>
-                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto 28px auto;">
+
+                        <!-- CTA button -->
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                               style="margin:0 auto 28px auto;">
                           <tr>
-                            <td align="center" bgcolor="#1d4ed8" style="border-radius: 12px; box-shadow: 0 12px 24px rgba(29, 78, 216, 0.18);">
-                              <a href="%s" style="display: inline-block; padding: 15px 30px; font-size: 16px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 12px;">
-                                Verifier mon email
+                            <td align="center"
+                                style="background:linear-gradient(135deg,#FFA726,#FF5722);
+                                       border-radius:12px;
+                                       box-shadow:0 6px 20px rgba(255,87,34,0.35);">
+                              <a href="%s"
+                                 style="display:inline-block;padding:15px 36px;font-size:16px;
+                                        font-weight:700;color:#ffffff;text-decoration:none;
+                                        border-radius:12px;letter-spacing:0.02em;">
+                                Vérifier mon email
                               </a>
                             </td>
                           </tr>
                         </table>
-                        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 4px; background-color: #f8fafc; border: 1px solid #d9e2ec; border-left: 4px solid #c58a1a; border-radius: 16px;">
+
+                        <!-- Info box -->
+                        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0"
+                               style="background:#fff8f0;border:1px solid #ffe0b2;
+                                      border-left:4px solid #FFA726;border-radius:12px;
+                                      margin-bottom:8px;">
                           <tr>
-                            <td style="padding: 18px 20px;">
-                              <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 700; color: #0f172a;">
-                                Informations utiles
+                            <td style="padding:16px 20px;">
+                              <p style="margin:0 0 6px 0;font-size:13px;font-weight:700;color:#e65100;">
+                                ℹ️ Informations utiles
                               </p>
-                              <p style="margin: 0; font-size: 14px; line-height: 1.7; color: #475569;">
-                                Ce lien expire dans quelques minutes. Si vous n'etes pas a l'origine de cette demande, vous pouvez ignorer cet email en toute securite.
+                              <p style="margin:0;font-size:13px;line-height:1.7;color:#5d4037;">
+                                Ce lien expire dans quelques minutes. Si vous n'êtes pas à l'origine
+                                de cette demande, vous pouvez ignorer cet email en toute sécurité.
                               </p>
                             </td>
                           </tr>
                         </table>
                       </td>
                     </tr>
+
+                    <!-- ── Footer ── -->
                     <tr>
-                      <td style="padding: 18px 10px 0 10px; text-align: center; font-size: 12px; line-height: 1.6; color: #94a3b8;">
-                        Cet email a ete envoye automatiquement. Merci de ne pas y repondre.
+                      <td style="background:#f9fafb;border-radius:0 0 20px 20px;
+                                 border:1px solid #e8e8e8;border-top:none;
+                                 padding:20px 32px;text-align:center;">
+                        <p style="margin:0 0 6px 0;font-size:13px;font-weight:700;color:#374151;">
+                          Yemchi W Yji
+                        </p>
+                        <p style="margin:0;font-size:12px;line-height:1.6;color:#9ca3af;">
+                          Cet email a été envoyé automatiquement. Merci de ne pas y répondre.<br>
+                          © 2026 Yemchi W Yji — Tous droits réservés.
+                        </p>
                       </td>
                     </tr>
+
                   </table>
                 </td>
               </tr>
@@ -172,7 +196,146 @@ public class MailService {
         """.formatted(escapedMessage, escapedUrl);
   }
 
-  private String escapeHtml(String value) {
+  /**
+   * Builds a professional HTML email for password reset.
+   */
+  public String buildResetPasswordEmailHtml(String resetUrl) {
+    String escapedUrl = escapeHtml(resetUrl);
+    return """
+        <!DOCTYPE html>
+        <html lang="fr">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Réinitialisation de votre mot de passe</title>
+          </head>
+          <body style="margin:0;padding:0;background-color:#f5f5f5;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;">
+            <!-- Preview text -->
+            <div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">
+              Réinitialisez votre mot de passe Yemchi W Yji — lien valable 30 minutes.
+            </div>
+
+            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0"
+                   style="background-color:#f5f5f5;padding:32px 12px;">
+              <tr>
+                <td align="center">
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0"
+                         style="max-width:600px;">
+
+                    <!-- ── Header: gradient + logo ── -->
+                    <tr>
+                      <td style="background:linear-gradient(135deg,#FFA726 0%%,#FF5722 100%%);
+                                 border-radius:20px 20px 0 0;padding:36px 32px 28px 32px;text-align:center;">
+                        <!-- Decorative top ring -->
+                        <div style="display:inline-block;width:80px;height:80px;border-radius:50%%;
+                                    background:rgba(255,255,255,0.15);
+                                    border:2px solid rgba(255,255,255,0.3);
+                                    line-height:80px;margin-bottom:16px;">
+                          <!-- Lock icon built from text -->
+                          <span style="font-size:34px;">🔒</span>
+                        </div>
+                        <h1 style="margin:0 0 8px 0;font-size:26px;font-weight:800;color:#ffffff;
+                                   text-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                          Yemchi W Yji
+                        </h1>
+                        <p style="margin:0;font-size:13px;font-weight:600;letter-spacing:0.1em;
+                                  text-transform:uppercase;color:rgba(255,255,255,0.85);">
+                          Réinitialisation du mot de passe
+                        </p>
+                      </td>
+                    </tr>
+
+                    <!-- ── Body ── -->
+                    <tr>
+                      <td style="background:#ffffff;padding:36px 32px;
+                                 border-left:1px solid #e8e8e8;border-right:1px solid #e8e8e8;">
+
+                        <p style="margin:0 0 18px 0;font-size:17px;font-weight:700;color:#1a1a1a;">
+                          Bonjour,
+                        </p>
+                        <p style="margin:0 0 24px 0;font-size:15px;line-height:1.8;color:#444444;">
+                          Vous avez demandé la réinitialisation de votre mot de passe sur
+                          <strong>Yemchi W Yji</strong>. Cliquez sur le bouton ci-dessous
+                          pour choisir un nouveau mot de passe.
+                        </p>
+
+                        <!-- CTA button -->
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0"
+                               style="margin:0 auto 28px auto;">
+                          <tr>
+                            <td align="center"
+                                style="background:linear-gradient(135deg,#FFA726,#FF5722);
+                                       border-radius:12px;
+                                       box-shadow:0 6px 20px rgba(255,87,34,0.35);">
+                              <a href="%s"
+                                 style="display:inline-block;padding:15px 36px;font-size:16px;
+                                        font-weight:700;color:#ffffff;text-decoration:none;
+                                        border-radius:12px;letter-spacing:0.02em;">
+                                Réinitialiser mon mot de passe
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+
+                        <!-- Info box -->
+                        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0"
+                               style="background:#fff8f0;border:1px solid #ffe0b2;
+                                      border-left:4px solid #FFA726;border-radius:12px;
+                                      margin-bottom:24px;">
+                          <tr>
+                            <td style="padding:16px 20px;">
+                              <p style="margin:0 0 6px 0;font-size:13px;font-weight:700;color:#e65100;">
+                                ⏱ Ce lien expire dans 30 minutes
+                              </p>
+                              <p style="margin:0;font-size:13px;line-height:1.7;color:#5d4037;">
+                                Pour des raisons de sécurité, ce lien ne peut être utilisé qu'une seule fois.
+                                Après expiration, vous devrez refaire une demande de réinitialisation.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+
+                        <!-- Security notice -->
+                        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0"
+                               style="background:#f9fafb;border:1px solid #e5e7eb;
+                                      border-radius:12px;margin-bottom:8px;">
+                          <tr>
+                            <td style="padding:14px 18px;">
+                              <p style="margin:0;font-size:13px;line-height:1.7;color:#6b7280;">
+                                🔐 <strong>Vous n'avez pas demandé cette réinitialisation ?</strong><br>
+                                Ignorez simplement cet email. Votre mot de passe actuel reste inchangé.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+
+                    <!-- ── Footer ── -->
+                    <tr>
+                      <td style="background:#f9fafb;border-radius:0 0 20px 20px;
+                                 border:1px solid #e8e8e8;border-top:none;
+                                 padding:20px 32px;text-align:center;">
+                        <p style="margin:0 0 6px 0;font-size:13px;font-weight:700;color:#374151;">
+                          Yemchi W Yji
+                        </p>
+                        <p style="margin:0;font-size:12px;line-height:1.6;color:#9ca3af;">
+                          Cet email a été envoyé automatiquement. Merci de ne pas y répondre.<br>
+                          © 2026 Yemchi W Yji — Tous droits réservés.
+                        </p>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+        </html>
+        """.formatted(escapedUrl);
+  }
+
+
     return value
         .replace("&", "&amp;")
         .replace("<", "&lt;")

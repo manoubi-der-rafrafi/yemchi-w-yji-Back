@@ -581,34 +581,111 @@ public static record LoginRequest(String email, String motDePasse) {}
     return base + "?token=" + encoded;
   }
 
+  private String buildResetPasswordUrl(String token) {
+    String encoded = URLEncoder.encode(token, StandardCharsets.UTF_8);
+    return "yemchiwyji://reset-password?token=" + encoded;
+  }
+
   @GetMapping("/verify-email")
   public ResponseEntity<Object> verifyEmail(@RequestParam("token") String token) {
     if (token == null || token.isBlank()) {
-      return ResponseEntity.badRequest().body("Token manquant");
+      return redirectToApp("error", "Token manquant");
     }
     try {
       Jwt jwt = jwtDecoder.decode(token);
       Object purpose = jwt.getClaim("purpose");
       if (purpose == null || !"verify_email".equals(purpose.toString())) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token invalide");
+        return redirectToApp("error", "Token invalide");
       }
       String userId = jwt.getSubject();
       if (userId == null || userId.isBlank()) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token invalide");
+        return redirectToApp("error", "Token invalide");
       }
 
       return utilisateurRepository.findById(userId)
           .map(u -> {
             u.setIsEmailVerified(true);
             utilisateurRepository.save(u);
-            u.setMotDePasse(null);
-            return ResponseEntity.ok().body((Object) Map.of("message", "Email verifie", "user", u));
+            return redirectToApp("success", null);
           })
-          .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-              .body((Object) Map.of("error", "Utilisateur non trouve")));
+          .orElseGet(() -> redirectToApp("error", "Utilisateur non trouve"));
     } catch (Exception e) {
-      return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-          .body((Object) Map.of("error", "Token invalide ou expire"));
+      return redirectToApp("error", "Token invalide ou expire");
+    }
+  }
+
+  /** Redirects the browser to the Flutter deep link after email verification. */
+  private ResponseEntity<Object> redirectToApp(String status, String message) {
+    StringBuilder deepLink = new StringBuilder("yemchiwyji://verify-email?status=").append(status);
+    if (message != null && !message.isBlank()) {
+      deepLink.append("&message=").append(URLEncoder.encode(message, StandardCharsets.UTF_8));
+    }
+    HttpHeaders headers = new HttpHeaders();
+    headers.add(HttpHeaders.LOCATION, deepLink.toString());
+    return ResponseEntity.status(HttpStatus.FOUND).headers(headers).build();
+  }
+
+  @PostMapping("/forgot-password")
+  public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
+    String email = body.get("email");
+    if (email == null || email.isBlank()) {
+      return ResponseEntity.badRequest().body(Map.of("message", "Email requis"));
+    }
+    // Always return success to avoid leaking account existence
+    utilisateurRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
+      try {
+        Instant now = Instant.now();
+        var claims = JwtClaimsSet.builder()
+            .issuer("transport")
+            .issuedAt(now)
+            .expiresAt(now.plusSeconds(1800)) // 30 minutes
+            .subject(user.getId())
+            .claim("email", user.getEmail())
+            .claim("purpose", "reset_password")
+            .build();
+        var header = JwsHeader.with(MacAlgorithm.HS256).build();
+        String resetToken = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+        String resetUrl = buildResetPasswordUrl(resetToken);
+        mailService.sendEmail(
+            user.getEmail(),
+            "Réinitialisation de votre mot de passe",
+            mailService.buildResetPasswordEmailHtml(resetUrl),
+            true
+        );
+      } catch (Exception e) {
+        logger.warn("forgot-password email send failed for email={} error={}", maskEmail(email), e.getMessage());
+      }
+    });
+    return ResponseEntity.ok(Map.of("message", "Si un compte existe avec cet email, un lien de réinitialisation a été envoyé."));
+  }
+
+  @PostMapping("/reset-password")
+  public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest req) {
+    if (req == null || req.token() == null || req.token().isBlank()) {
+      return ResponseEntity.badRequest().body(Map.of("error", "Token requis"));
+    }
+    if (req.newPassword() == null || req.newPassword().length() < 8) {
+      return ResponseEntity.badRequest().body(Map.of("error", "Le mot de passe doit contenir au moins 8 caractères"));
+    }
+    try {
+      Jwt jwt = jwtDecoder.decode(req.token());
+      Object purpose = jwt.getClaim("purpose");
+      if (purpose == null || !"reset_password".equals(purpose.toString())) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Token invalide"));
+      }
+      String userId = jwt.getSubject();
+      if (userId == null || userId.isBlank()) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Token invalide"));
+      }
+      return utilisateurRepository.findById(userId)
+          .map(u -> {
+            u.setMotDePasse(passwordEncoder.encode(req.newPassword()));
+            utilisateurRepository.save(u);
+            return ResponseEntity.ok((Object) Map.of("message", "Mot de passe réinitialisé avec succès"));
+          })
+          .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).body((Object) Map.of("error", "Utilisateur non trouvé")));
+    } catch (Exception e) {
+      return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Token invalide ou expiré"));
     }
   }
 
@@ -1107,6 +1184,8 @@ public ResponseEntity<?> declarerAccidentAvecProduits(
     return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
   }
 }
+
+public static record ResetPasswordRequest(String token, String newPassword) {}
 
 public static record PositionsRequest(List<String> ids) {}
 
