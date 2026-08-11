@@ -335,7 +335,7 @@ public class MailService {
         """.formatted(escapedUrl);
   }
 
-
+  private String escapeHtml(String value) {
     return value
         .replace("&", "&amp;")
         .replace("<", "&lt;")
