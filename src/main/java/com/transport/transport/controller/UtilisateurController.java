@@ -582,8 +582,31 @@ public static record LoginRequest(String email, String motDePasse) {}
   }
 
   private String buildResetPasswordUrl(String token) {
+    // Route through the backend HTTP endpoint which 302-redirects to the deep link.
+    // Email clients block custom URL schemes (yemchiwyji://) but allow https:// links.
     String encoded = URLEncoder.encode(token, StandardCharsets.UTF_8);
-    return "yemchiwyji://reset-password?token=" + encoded;
+    String base = (verificationBaseUrl == null || verificationBaseUrl.isBlank())
+        ? "http://localhost:8081/api/utilisateur"
+        : verificationBaseUrl.replaceAll("/verify-email$", "");
+    return base + "/reset-password-redirect?token=" + encoded;
+  }
+
+  /**
+   * GET /reset-password-redirect?token=...
+   * Receives the click from the email, then HTTP 302-redirects to the Flutter deep link.
+   * Using an HTTPS intermediate step is required because email clients block
+   * custom URL scheme links (yemchiwyji://) for security reasons.
+   */
+  @GetMapping("/reset-password-redirect")
+  public ResponseEntity<Object> resetPasswordRedirect(@RequestParam("token") String token) {
+    if (token == null || token.isBlank()) {
+      return ResponseEntity.badRequest().build();
+    }
+    String encoded = URLEncoder.encode(token, StandardCharsets.UTF_8);
+    String deepLink = "yemchiwyji://reset-password?token=" + encoded;
+    return ResponseEntity.status(302)
+        .header("Location", deepLink)
+        .build();
   }
 
   @GetMapping("/verify-email")
@@ -631,32 +654,43 @@ public static record LoginRequest(String email, String motDePasse) {}
     if (email == null || email.isBlank()) {
       return ResponseEntity.badRequest().body(Map.of("message", "Email requis"));
     }
-    // Always return success to avoid leaking account existence
-    utilisateurRepository.findByEmailIgnoreCase(email).ifPresent(user -> {
-      try {
-        Instant now = Instant.now();
-        var claims = JwtClaimsSet.builder()
-            .issuer("transport")
-            .issuedAt(now)
-            .expiresAt(now.plusSeconds(1800)) // 30 minutes
-            .subject(user.getId())
-            .claim("email", user.getEmail())
-            .claim("purpose", "reset_password")
-            .build();
-        var header = JwsHeader.with(MacAlgorithm.HS256).build();
-        String resetToken = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
-        String resetUrl = buildResetPasswordUrl(resetToken);
-        mailService.sendEmail(
-            user.getEmail(),
-            "Réinitialisation de votre mot de passe",
-            mailService.buildResetPasswordEmailHtml(resetUrl),
-            true
-        );
-      } catch (Exception e) {
-        logger.warn("forgot-password email send failed for email={} error={}", maskEmail(email), e.getMessage());
-      }
-    });
-    return ResponseEntity.ok(Map.of("message", "Si un compte existe avec cet email, un lien de réinitialisation a été envoyé."));
+
+    var userOpt = utilisateurRepository.findByEmailIgnoreCase(email);
+
+    // Return 404 if no account found with this email
+    if (userOpt.isEmpty()) {
+      logger.debug("forgot-password: no account found for email={}", maskEmail(email));
+      return ResponseEntity.status(HttpStatus.NOT_FOUND)
+          .body(Map.of("message", "Aucun compte n'est associé à cette adresse email."));
+    }
+
+    try {
+      var user = userOpt.get();
+      Instant now = Instant.now();
+      var claims = JwtClaimsSet.builder()
+          .issuer("transport")
+          .issuedAt(now)
+          .expiresAt(now.plusSeconds(1800)) // 30 minutes
+          .subject(user.getId())
+          .claim("email", user.getEmail())
+          .claim("purpose", "reset_password")
+          .build();
+      var header = JwsHeader.with(MacAlgorithm.HS256).build();
+      String resetToken = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+      String resetUrl = buildResetPasswordUrl(resetToken);
+      mailService.sendEmail(
+          user.getEmail(),
+          "Réinitialisation de votre mot de passe",
+          mailService.buildResetPasswordEmailHtml(resetUrl),
+          true
+      );
+      logger.info("forgot-password: reset email sent to={}", maskEmail(email));
+      return ResponseEntity.ok(Map.of("message", "Un lien de réinitialisation a été envoyé à votre adresse email."));
+    } catch (Exception e) {
+      logger.error("forgot-password: email send failed for email={} error={}", maskEmail(email), e.getMessage());
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body(Map.of("message", "Erreur lors de l'envoi de l'email. Veuillez réessayer."));
+    }
   }
 
   @PostMapping("/reset-password")
