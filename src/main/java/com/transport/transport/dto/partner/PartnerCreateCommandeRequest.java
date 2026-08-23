@@ -8,6 +8,7 @@ import com.transport.transport.model.TypeVehicule;
 
 public record PartnerCreateCommandeRequest(
         String externalOrderId,
+        String businessLogoUrl,
         String instructions,
         BigDecimal prix,
         BigDecimal prixProduitsPartenaire,

@@ -69,6 +69,7 @@ class PartnerCommandeServiceTest {
 
         PartnerCreateCommandeRequest request = new PartnerCreateCommandeRequest(
                 "ORDER-1001",
+                "https://cdn.example.com/boutique-logo.png",
                 "fragile",
                 BigDecimal.valueOf(55),
                 BigDecimal.valueOf(55),
@@ -110,6 +111,10 @@ class PartnerCommandeServiceTest {
         assertEquals("ORDER-1001", response.commande().getExternalOrderId());
         assertEquals("12", response.commande().getExternalBusinessId());
         assertEquals("partner-1", response.commande().getPartenaireId());
+        assertEquals("Boutique Test", response.commande().getPartenaireNom());
+        assertEquals(
+                "https://cdn.example.com/boutique-logo.png",
+                response.commande().getPartenaireLogoUrl());
         assertEquals(Commande.Statut.confirmer, response.commande().getStatut());
         assertEquals(
                 Commande.StatutEncaissementSociete.NON_APPLICABLE,

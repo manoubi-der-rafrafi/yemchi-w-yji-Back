@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -31,8 +33,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
@@ -50,6 +57,9 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
 import com.transport.transport.security.PartnerAuthenticationFilter;
+import com.transport.transport.security.ApiAbuseProtectionFilter;
+import com.transport.transport.security.AccountStatusFilter;
+import com.transport.transport.service.RequestRateLimiter;
 
 @Configuration
 @EnableMethodSecurity
@@ -120,9 +130,37 @@ public class SecurityConfig {
   }
 
   @Bean
+  @Primary
   JwtDecoder jwtDecoder() {
     SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-    return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+    NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+    OAuth2TokenValidator<org.springframework.security.oauth2.jwt.Jwt> accessTokenValidator = jwt -> {
+      String purpose = jwt.getClaimAsString("purpose");
+      Object roles = jwt.getClaims().get("roles");
+      boolean currentToken = "access".equals(purpose) && jwt.getAudience().contains("transport-api");
+      // Compatibilite pendant au plus 7 jours avec les JWT emis avant cette migration.
+      boolean legacyAccessToken = purpose == null && roles instanceof java.util.Collection<?> values && !values.isEmpty();
+      return currentToken || legacyAccessToken
+          ? OAuth2TokenValidatorResult.success()
+          : OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Type de JWT invalide", null));
+    };
+    decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+        JwtValidators.createDefaultWithIssuer("transport"), accessTokenValidator));
+    return decoder;
+  }
+
+  @Bean("verificationJwtDecoder")
+  JwtDecoder verificationJwtDecoder() {
+    SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+    NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+    OAuth2TokenValidator<org.springframework.security.oauth2.jwt.Jwt> verificationValidator = jwt ->
+        "verify_email".equals(jwt.getClaimAsString("purpose"))
+            ? OAuth2TokenValidatorResult.success()
+            : OAuth2TokenValidatorResult.failure(
+                new OAuth2Error("invalid_token", "Jeton de verification invalide", null));
+    decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+        JwtValidators.createDefaultWithIssuer("transport"), verificationValidator));
+    return decoder;
   }
 
   @Bean
@@ -143,6 +181,21 @@ public class SecurityConfig {
   }
 
   @Bean
+  ApiAbuseProtectionFilter apiAbuseProtectionFilter(
+      RequestRateLimiter limiter,
+      @Value("${app.security.trust-proxy-headers:false}") boolean trustProxyHeaders) {
+    return new ApiAbuseProtectionFilter(limiter, trustProxyHeaders);
+  }
+
+  @Bean
+  FilterRegistrationBean<ApiAbuseProtectionFilter> apiAbuseProtectionFilterRegistration(
+      ApiAbuseProtectionFilter filter) {
+    FilterRegistrationBean<ApiAbuseProtectionFilter> registration = new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
+  }
+
+  @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cfg = new CorsConfiguration();
     cfg.setAllowedOriginPatterns(List.of(
@@ -152,9 +205,9 @@ public class SecurityConfig {
         "https://www.yemchi-w-yji.tn",
         "http://10.0.2.2:5173"));
     cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-    cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin", "X-API-Key"));
+    cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin", "X-API-Key", "X-Client-Type", "X-Signup-Token"));
     cfg.setExposedHeaders(List.of("Authorization", "Location"));
-    cfg.setAllowCredentials(false);
+    cfg.setAllowCredentials(true);
     cfg.setMaxAge(3600L);
 
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
@@ -167,6 +220,8 @@ public class SecurityConfig {
       HttpSecurity http,
       UpdateLastSeenFilter lastSeenFilter,
       PartnerAuthenticationFilter partnerAuthenticationFilter,
+      AccountStatusFilter accountStatusFilter,
+      ApiAbuseProtectionFilter apiAbuseProtectionFilter,
       JwtAuthenticationConverter jwtAuthenticationConverter,
       BearerTokenResolver bearerTokenResolver) throws Exception {
     http
@@ -195,23 +250,29 @@ public class SecurityConfig {
             }))
         .authorizeHttpRequests(auth -> auth
             .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+            .requestMatchers(HttpMethod.GET, "/health").permitAll()
             .requestMatchers("/error").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/login").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/login/google").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/google").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/email").permitAll()
-            .requestMatchers("/api/utilisateur/register/**").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/utilisateur/verify-email").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/utilisateur/email-verification-status").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/analytics/events").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/errors").permitAll()
-            .requestMatchers(HttpMethod.GET, "/api/utilisateur/search/email").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/internal/partners/provision").permitAll()
+            .requestMatchers(HttpMethod.PATCH, "/api/internal/partners/*").permitAll()
+            .requestMatchers(HttpMethod.GET, "/api/internal/finance-livreurs/*/details").permitAll()
             .requestMatchers("/auth/**").permitAll()
-            .requestMatchers("/api/utilisateur/register").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/utilisateur/register").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/presence/heartbeat").authenticated()
             .requestMatchers(HttpMethod.POST, "/api/presence/logout").authenticated()
             .requestMatchers(HttpMethod.GET, "/api/presence/**").authenticated()
+            .requestMatchers(HttpMethod.GET,
+                "/api/utilisateur/search/email",
+                "/api/utilisateur/search/numero").authenticated()
             .requestMatchers("/api/admin/partners/**").authenticated()
             .requestMatchers("/api/admin/analytics/**").authenticated()
             .requestMatchers("/api/admin/errors/**").authenticated()
@@ -219,12 +280,17 @@ public class SecurityConfig {
             .requestMatchers("/api/commandes/**").authenticated()
             .requestMatchers("/api/demandes/**").authenticated()
             .requestMatchers("/api/produits/**").authenticated()
+            .requestMatchers("/api/ai/**").authenticated()
             .anyRequest().authenticated())
         .oauth2ResourceServer(oauth2 -> oauth2
             .bearerTokenResolver(bearerTokenResolver)
             .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter)));
 
     http.addFilterBefore(partnerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+    http.addFilterAfter(apiAbuseProtectionFilter,
+        org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
+    http.addFilterAfter(accountStatusFilter,
+        org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
     http.addFilterAfter(
         lastSeenFilter,
         org.springframework.security.web.context.SecurityContextHolderFilter.class);
@@ -242,6 +308,8 @@ public class SecurityConfig {
     if (HttpMethod.POST.matches(method)) {
       return "/api/utilisateur/login".equals(uri)
           || "/api/utilisateur/login/google".equals(uri)
+          || "/api/auth/refresh".equals(uri)
+          || "/api/auth/logout".equals(uri)
           || "/api/utilisateur/register".equals(uri)
           || "/api/utilisateur/register/google".equals(uri)
           || "/api/utilisateur/register/email".equals(uri)
@@ -251,8 +319,7 @@ public class SecurityConfig {
     if (HttpMethod.GET.matches(method)) {
       return "/error".equals(uri)
           || "/api/utilisateur/verify-email".equals(uri)
-          || "/api/utilisateur/email-verification-status".equals(uri)
-          || "/api/utilisateur/search/email".equals(uri);
+          || "/api/utilisateur/email-verification-status".equals(uri);
     }
     return false;
   }

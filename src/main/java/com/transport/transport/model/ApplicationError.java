@@ -9,8 +9,8 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document(collection = "application_error")
-@CompoundIndex(name = "error_source_created_idx", def = "{'source': 1, 'createdAt': -1}")
-@CompoundIndex(name = "error_severity_created_idx", def = "{'severity': 1, 'createdAt': -1}")
+@CompoundIndex(def = "{'source': 1, 'createdAt': -1}")
+@CompoundIndex(def = "{'severity': 1, 'createdAt': -1}")
 public class ApplicationError {
   @Id
   private String id;

@@ -1,6 +1,7 @@
 package com.transport.transport.model;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
@@ -19,6 +20,16 @@ public class Partenaire {
 
     private String externalOwnerUserId;
     private String businessName;
+    private String logoUrl;
+    private String phone;
+    private List<String> phoneNumbers;
+    private String email;
+    private String address;
+    private String facebookUrl;
+    private String instagramUrl;
+    private String tiktokUrl;
+    private Double latitude;
+    private Double longitude;
     private Statut statut = Statut.ACTIF;
 
     @CreatedDate
@@ -64,6 +75,36 @@ public class Partenaire {
     public void setBusinessName(String businessName) {
         this.businessName = businessName;
     }
+
+    public String getLogoUrl() { return logoUrl; }
+    public void setLogoUrl(String logoUrl) { this.logoUrl = logoUrl; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
+
+    public List<String> getPhoneNumbers() { return phoneNumbers; }
+    public void setPhoneNumbers(List<String> phoneNumbers) { this.phoneNumbers = phoneNumbers; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
+
+    public String getFacebookUrl() { return facebookUrl; }
+    public void setFacebookUrl(String facebookUrl) { this.facebookUrl = facebookUrl; }
+
+    public String getInstagramUrl() { return instagramUrl; }
+    public void setInstagramUrl(String instagramUrl) { this.instagramUrl = instagramUrl; }
+
+    public String getTiktokUrl() { return tiktokUrl; }
+    public void setTiktokUrl(String tiktokUrl) { this.tiktokUrl = tiktokUrl; }
+
+    public Double getLatitude() { return latitude; }
+    public void setLatitude(Double latitude) { this.latitude = latitude; }
+
+    public Double getLongitude() { return longitude; }
+    public void setLongitude(Double longitude) { this.longitude = longitude; }
 
     public Statut getStatut() {
         return statut;

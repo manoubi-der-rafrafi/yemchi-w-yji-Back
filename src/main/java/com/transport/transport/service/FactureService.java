@@ -20,12 +20,14 @@ public class FactureService {
     }
 
     public List<Facture> listByLivreurId(String livreurId) {
-        return factureRepository.findByIdLivreurAndConfirmerNotNonTraiter(livreurId);
+        return factureRepository.findByIdLivreur(livreurId);
     }
 
     public BigDecimal sumMontantEntrepriseVerseLivreurByLivreurId(String livreurId) {
-        List<Facture> factures = factureRepository.findByIdLivreurAndType(
-                livreurId, Facture.FactureType.ENTREPRISE_VERSE_LIVREUR);
+        List<Facture> factures = factureRepository.findByIdLivreurAndTypeAndConfirmer(
+                livreurId,
+                Facture.FactureType.ENTREPRISE_VERSE_LIVREUR,
+                Facture.ConfirmationStatut.ACCEPTER);
         BigDecimal total = BigDecimal.ZERO;
         for (Facture facture : factures) {
             if (facture.getMontant() != null) {
@@ -36,8 +38,10 @@ public class FactureService {
     }
 
     public BigDecimal sumMontantLivreurVerseEntrepriseByLivreurId(String livreurId) {
-        List<Facture> factures = factureRepository.findByIdLivreurAndType(
-                livreurId, Facture.FactureType.LIVREUR_VERSE_ENTREPRISE);
+        List<Facture> factures = factureRepository.findByIdLivreurAndTypeAndConfirmer(
+                livreurId,
+                Facture.FactureType.LIVREUR_VERSE_ENTREPRISE,
+                Facture.ConfirmationStatut.ACCEPTER);
         BigDecimal total = BigDecimal.ZERO;
         for (Facture facture : factures) {
             if (facture.getMontant() != null) {

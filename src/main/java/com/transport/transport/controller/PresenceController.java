@@ -3,6 +3,7 @@ package com.transport.transport.controller;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,15 +12,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.transport.transport.service.PresenceService;
+import com.transport.transport.service.AuthorizationService;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/presence")
 public class PresenceController {
 
   private final PresenceService presence;
+  private final AuthorizationService authorizationService;
 
-  public PresenceController(PresenceService presence) {
+  public PresenceController(PresenceService presence, AuthorizationService authorizationService) {
     this.presence = presence;
+    this.authorizationService = authorizationService;
   }
 
   @PostMapping("/heartbeat")
@@ -46,7 +51,11 @@ public ResponseEntity<Void> heartbeat(
   }
 
   @GetMapping("/{id}")
-  public Map<String, Object> status(@PathVariable String id) {
+  public Map<String, Object> status(@PathVariable String id, Authentication authentication) {
+    var current = authorizationService.currentUser(authentication);
+    if (!authorizationService.canAccessUserData(current, id)) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");
+    }
     boolean online = presence.isOnline(id);
     return Map.of("userId", id, "online", online);
   }

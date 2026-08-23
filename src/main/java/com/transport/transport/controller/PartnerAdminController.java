@@ -35,6 +35,16 @@ public class PartnerAdminController {
                 request.externalBusinessId(),
                 request.externalOwnerUserId(),
                 request.businessName(),
+                request.logoUrl(),
+                request.phone(),
+                request.phoneNumbers(),
+                request.email(),
+                request.address(),
+                request.facebookUrl(),
+                request.instagramUrl(),
+                request.tiktokUrl(),
+                request.latitude(),
+                request.longitude(),
                 request.scopes());
         return ResponseEntity.ok(new PartnerProvisionResponse(
                 result.partenaire().getId(),

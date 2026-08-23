@@ -1,6 +1,7 @@
 package com.transport.transport.controller;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +24,7 @@ import com.transport.transport.model.Facture;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.service.AuthorizationService;
 import com.transport.transport.service.FactureService;
+import com.transport.transport.security.ImageUploadValidator;
 
 @RestController
 @RequestMapping("/api/factures")
@@ -40,10 +42,9 @@ public class FactureController {
 
     @PostMapping
     public Facture createFacture(@RequestBody Facture facture, Authentication authentication) {
+        authorizationService.requireTransporteurOrAdmin(authentication);
         Utilisateur current = authorizationService.currentUser(authentication);
-        if (!authorizationService.isAdmin(current)) {
-            facture.setIdLivreur(current.getId());
-        }
+        secureNewFacture(facture, current);
         return factureService.createFacture(facture);
     }
 
@@ -57,14 +58,10 @@ public class FactureController {
             @RequestParam(value = "confirmer", required = false) String confirmer,
             Authentication authentication) {
         try {
+            authorizationService.requireTransporteurOrAdmin(authentication);
             Utilisateur current = authorizationService.currentUser(authentication);
-            if (!authorizationService.isAdmin(current)) {
-                idLivreur = current.getId();
-            }
-            if (image == null || image.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("success", false, "message", "Fichier vide"));
-            }
+            validateFactureValues(montant, type);
+            ImageUploadValidator.validate(image, ImageUploadValidator.STANDARD_MAX_BYTES);
 
             Map params = ObjectUtils.asMap(
                     "folder", "monapp/facture",
@@ -87,12 +84,15 @@ public class FactureController {
                 facture.setConfirmer(statut);
             }
             facture.setImage(url);
+            secureNewFacture(facture, current);
 
             return ResponseEntity.ok(factureService.createFacture(facture));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body(Map.of("success", false, "message", e.getReason()));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError()
-                    .body(Map.of("success", false, "message", "Erreur serveur: " + e.getMessage()));
+                    .body(Map.of("success", false, "message", "Erreur interne lors de l'upload"));
         }
     }
 
@@ -118,5 +118,37 @@ public class FactureController {
         authorizationService.requireSelfOrAdmin(livreurId, authentication);
         BigDecimal total = factureService.sumMontantLivreurVerseEntrepriseByLivreurId(livreurId);
         return ResponseEntity.ok(total);
+    }
+
+    private void secureNewFacture(Facture facture, Utilisateur current) {
+        if (facture == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Facture requise");
+        }
+        validateFactureValues(facture.getMontant(), facture.getType());
+
+        // Une creation ne doit jamais devenir une mise a jour Mongo via un id fourni par le client.
+        facture.setId(null);
+        facture.setDateTimle(Instant.now().toString());
+        if (!authorizationService.isAdmin(current)) {
+            facture.setIdLivreur(current.getId());
+            facture.setType(Facture.FactureType.LIVREUR_VERSE_ENTREPRISE);
+            facture.setConfirmer(Facture.ConfirmationStatut.NON_TRAITER);
+        } else if (facture.getIdLivreur() == null || facture.getIdLivreur().isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Livreur requis");
+        }
+    }
+
+    private void validateFactureValues(BigDecimal montant, Facture.FactureType type) {
+        if (montant == null || montant.compareTo(BigDecimal.ZERO) <= 0
+                || montant.compareTo(new BigDecimal("1000000")) > 0) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Montant de facture invalide");
+        }
+        if (type == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST, "Type de facture requis");
+        }
     }
 }

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -159,5 +160,46 @@ class CommandeServiceTest {
         assertEquals(new BigDecimal("10.000"), result.getPrix());
         assertNotNull(result.getDistanceKm());
         org.junit.jupiter.api.Assertions.assertTrue(result.getDistanceKm() > 0);
+    }
+
+    @Test
+    void sendsB2cStatusChangesToEcommerceSyncQueue() {
+        EcommerceOrderStatusSyncService syncService =
+                org.mockito.Mockito.mock(EcommerceOrderStatusSyncService.class);
+        List<Commande.Statut> syncedStatuses = new ArrayList<>();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            Commande synced = invocation.getArgument(0);
+            syncedStatuses.add(synced.getStatut());
+            return null;
+        }).when(syncService).enqueue(any(Commande.class));
+        service.setEcommerceOrderStatusSyncService(syncService);
+
+        Commande commande = new Commande();
+        commande.setId("transport-order-1");
+        commande.setExternalOrderId("ecom-10-20");
+        commande.setSourceCommande(Commande.SourceCommande.B2C);
+        commande.setStatut(Commande.Statut.confirmer);
+        when(commandeRepository.findById(commande.getId()))
+                .thenReturn(java.util.Optional.of(commande));
+        when(commandeRepository.save(any(Commande.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.assignerTransporteur(commande.getId(), "livreur-1");
+        service.demarrerAppelClient1(commande.getId());
+        service.marquerNonReponseClient1(commande.getId());
+        Commande cancellation = new Commande();
+        cancellation.setStatut(Commande.Statut.annulee);
+        service.updateCommande(commande.getId(), cancellation);
+        commande.setStatut(Commande.Statut.en_route);
+        service.marquerReceptionScanne(commande.getId());
+
+        assertEquals(
+                List.of(
+                        Commande.Statut.en_appelle,
+                        Commande.Statut.appelle_client_1,
+                        Commande.Statut.non_repondre_client_1,
+                        Commande.Statut.annulee,
+                        Commande.Statut.livree),
+                syncedStatuses);
     }
 }

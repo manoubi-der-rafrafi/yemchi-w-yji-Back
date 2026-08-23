@@ -12,6 +12,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -36,6 +37,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -47,13 +49,19 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.transport.transport.dto.TransporteurPanneCommandesResponse;
 import com.transport.transport.dto.UserPosition;
+import com.transport.transport.dto.UtilisateurSearchResponse;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.repository.UtilisateurRepository;
+import com.transport.transport.service.AuthTokenService;
 import com.transport.transport.service.AuthorizationService;
 import com.transport.transport.service.MailService;
 import com.transport.transport.service.MailService.MailDeliveryException;
 import com.transport.transport.service.MailService.MailTransportException;
 import com.transport.transport.service.UtilisateurService;
+import com.transport.transport.service.RequestRateLimiter;
+import com.transport.transport.service.SignupVerificationService;
+import com.transport.transport.security.ImageUploadValidator;
+import com.transport.transport.security.PasswordPolicy;
 @RestController
 @RequestMapping("/api/utilisateur")
 public class UtilisateurController {
@@ -63,6 +71,8 @@ public class UtilisateurController {
 
     @Autowired
     private UtilisateurRepository utilisateurRepository;
+    @Autowired
+    private RequestRateLimiter requestRateLimiter;
     private UtilisateurService utilisateurService;
   private final Cloudinary cloudinary;
   private final AuthenticationManager authManager;
@@ -72,6 +82,9 @@ public class UtilisateurController {
   private final GoogleIdTokenVerifier googleVerifier;
   private final MailService mailService;
   private final AuthorizationService authorizationService;
+  private final AuthTokenService authTokenService;
+  private final AuthSessionController authSessionController;
+  private final SignupVerificationService signupVerificationService;
   @Value("${app.verification.base-url:http://localhost:3000/verify-email}")
   private String verificationBaseUrl;
     // LOGIN : POST /api/utilisateur/login
@@ -79,11 +92,14 @@ public class UtilisateurController {
     public UtilisateurController(UtilisateurService utilisateurService, Cloudinary cloudinary,
     AuthenticationManager authManager,
       JwtEncoder jwtEncoder,
-      JwtDecoder jwtDecoder,
+      @Qualifier("verificationJwtDecoder") JwtDecoder jwtDecoder,
       PasswordEncoder passwordEncoder,
       GoogleIdTokenVerifier googleVerifier,
       MailService mailService,
-      AuthorizationService authorizationService) {
+      AuthorizationService authorizationService,
+      AuthTokenService authTokenService,
+      AuthSessionController authSessionController,
+      SignupVerificationService signupVerificationService) {
         this.utilisateurService = utilisateurService;
         this.cloudinary = cloudinary;
         this.authManager = authManager;
@@ -93,12 +109,17 @@ public class UtilisateurController {
     this.googleVerifier = googleVerifier;
     this.mailService = mailService;
     this.authorizationService = authorizationService;
+    this.authTokenService = authTokenService;
+    this.authSessionController = authSessionController;
+    this.signupVerificationService = signupVerificationService;
 
     }
 
 
         @PostMapping("/login/google")
-    public ResponseEntity<?> loginWithGoogle(@RequestBody GoogleLoginRequest req) {
+    public ResponseEntity<?> loginWithGoogle(
+        @RequestBody GoogleLoginRequest req,
+        @RequestHeader(value = "X-Client-Type", required = false) String clientType) {
       String tokenFromRequest = (req != null) ? req.resolvedToken() : null;
       if (tokenFromRequest == null || tokenFromRequest.isBlank()) {
         return ResponseEntity.badRequest().body(Map.of(
@@ -161,9 +182,8 @@ public class UtilisateurController {
           return blocked;
         }
 
-        return ResponseEntity.ok(buildLoginResponse(user));
+        return buildLoginResponse(user, clientType, HttpStatus.OK);
       } catch (Exception e) {
-        e.printStackTrace();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(Map.of(
                 "error", "Erreur login Google: " + e.getMessage(),
@@ -171,7 +191,19 @@ public class UtilisateurController {
       }
     }
     @PostMapping("/login")
-  public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+  public ResponseEntity<?> login(
+      @RequestBody LoginRequest req,
+      @RequestHeader(value = "X-Client-Type", required = false) String clientType) {
+    String loginSubject = req == null || req.email() == null
+        ? "missing"
+        : req.email().trim().toLowerCase(java.util.Locale.ROOT);
+    RequestRateLimiter.Result accountLimit = requestRateLimiter.acquire(
+        "login-account", loginSubject, 10, 300);
+    if (!accountLimit.allowed()) {
+      return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+          .header(HttpHeaders.RETRY_AFTER, String.valueOf(accountLimit.retryAfterSeconds()))
+          .body("Trop de tentatives de connexion. Reessayez plus tard.");
+    }
     try {
       // 1) Authentifier via AuthenticationManager (utilise BCrypt de ta SecurityConfig)
       authManager.authenticate(
@@ -188,7 +220,7 @@ public class UtilisateurController {
       if (blocked != null) {
         return blocked;
       }
-      return ResponseEntity.ok(buildLoginResponse(user));
+      return buildLoginResponse(user, clientType, HttpStatus.OK);
     } catch (BadCredentialsException e) {
       return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Email ou mot de passe incorrect");
     }
@@ -202,7 +234,6 @@ public class UtilisateurController {
   }
 }
 public static record LoginRequest(String email, String motDePasse) {}
-  public static record LoginResponse(String token, Utilisateur user) {}
   public static record GoogleRegisterRequest(
       @com.fasterxml.jackson.annotation.JsonProperty("idToken") String idToken,
       @com.fasterxml.jackson.annotation.JsonProperty("id_token") String idTokenSnake,
@@ -230,13 +261,19 @@ public static record LoginRequest(String email, String motDePasse) {}
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouvé");
         }
-        user.setMotDePasse(null);
-        return ResponseEntity.ok(user);
+        if (authorizationService.isAdmin(current) || current.getId().equals(id)) {
+            user.setMotDePasse(null);
+            return ResponseEntity.ok(user);
+        }
+        return ResponseEntity.ok(UtilisateurSearchResponse.from(user));
     }
 
     
     @PostMapping("/register")
-  public ResponseEntity<?> register(@RequestBody Utilisateur payload) {
+  public ResponseEntity<?> register(
+      @RequestBody Utilisateur payload,
+      @RequestHeader(value = "X-Signup-Token", required = false) String signupToken,
+      @RequestHeader(value = "X-Client-Type", required = false) String clientType) {
     if (payload.getEmail() == null || payload.getEmail().isBlank()) {
       return ResponseEntity.badRequest().body("Email requis");
     }
@@ -246,6 +283,7 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
 
     try {
+      PasswordPolicy.requireStrong(payload.getMotDePasse());
       Utilisateur existing = utilisateurRepository.findByEmailIgnoreCase(payload.getEmail())
           .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Email non verifie"));
       if (isSignupComplete(existing)) {
@@ -254,9 +292,13 @@ public static record LoginRequest(String email, String motDePasse) {}
       if (!Boolean.TRUE.equals(existing.getIsEmailVerified())) {
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Email non verifie");
       }
+      var signupSession = signupVerificationService.consumeVerified(payload.getEmail(), signupToken);
+      if (!existing.getId().equals(signupSession.getUserId())) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Session d'inscription invalide");
+      }
       Utilisateur saved = completePendingSignup(existing, payload);
 
-      return ResponseEntity.status(HttpStatus.CREATED).body(buildLoginResponse(saved));
+      return buildLoginResponse(saved, clientType, HttpStatus.CREATED);
     } catch (ResponseStatusException e) {
       return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
     }
@@ -296,7 +338,8 @@ public static record LoginRequest(String email, String motDePasse) {}
             logger.info("traceId={} register/email reset verification state email={}",
                 traceId, maskEmail(existing.getEmail()));
           }
-          String token = buildVerificationToken(existing);
+          var signupSession = signupVerificationService.start(existing);
+          String token = buildVerificationToken(existing, signupSession.sessionId());
           String url = buildVerificationUrl(token);
           logger.info("traceId={} register/email sending verification email existingUser=true email={}",
               traceId, maskEmail(existing.getEmail()));
@@ -307,14 +350,15 @@ public static record LoginRequest(String email, String motDePasse) {}
           );
           logger.info("traceId={} register/email verification email sent email={}",
               traceId, maskEmail(existing.getEmail()));
-          existing.setMotDePasse(null);
           return ResponseEntity.ok()
               .headers(traceHeaders(traceId, null))
-              .body(Map.of("user", existing));
+              .body(Map.of("message", "Email de verification envoye",
+                  "signupToken", signupSession.clientToken()));
         })
         .orElseGet(() -> {
           Utilisateur created = utilisateurService.createUserWithEmail(email);
-          String token = buildVerificationToken(created);
+          var signupSession = signupVerificationService.start(created);
+          String token = buildVerificationToken(created, signupSession.sessionId());
           String url = buildVerificationUrl(token);
           logger.info("traceId={} register/email sending verification email existingUser=false email={}",
               traceId, maskEmail(created.getEmail()));
@@ -325,10 +369,10 @@ public static record LoginRequest(String email, String motDePasse) {}
           );
           logger.info("traceId={} register/email verification email sent email={}",
               traceId, maskEmail(created.getEmail()));
-          created.setMotDePasse(null);
           return ResponseEntity.status(HttpStatus.CREATED)
               .headers(traceHeaders(traceId, null))
-              .body(Map.of("user", created));
+              .body(Map.of("message", "Email de verification envoye",
+                  "signupToken", signupSession.clientToken()));
         });
     } catch (MailDeliveryException e) {
       return buildMailFailureResponse(
@@ -372,7 +416,9 @@ public static record LoginRequest(String email, String motDePasse) {}
   }
 
   @PostMapping("/register/google")
-  public ResponseEntity<?> registerWithGoogle(@RequestBody GoogleRegisterRequest req) {
+  public ResponseEntity<?> registerWithGoogle(
+      @RequestBody GoogleRegisterRequest req,
+      @RequestHeader(value = "X-Client-Type", required = false) String clientType) {
     String tokenFromRequest = (req != null) ? req.resolvedToken() : null;
     if (tokenFromRequest == null || tokenFromRequest.isBlank()) {
       return ResponseEntity.badRequest().body(Map.of(
@@ -401,6 +447,10 @@ public static record LoginRequest(String email, String motDePasse) {}
             return created;
           });
 
+      if (user.getStatut() == Utilisateur.Statut.banni) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Compte banni");
+      }
+
       user.setGoogleSubject(googleSubject);
       user.setIsEmailVerified(true);
       if (payload.get("given_name") instanceof String givenName && !givenName.isBlank()) {
@@ -419,6 +469,7 @@ public static record LoginRequest(String email, String motDePasse) {}
       user.setPhoneDialCode(req.phoneDialCode());
       user.setDateNaissance(req.dateNaissance());
       if (req.motDePasse() != null && !req.motDePasse().isBlank()) {
+        PasswordPolicy.requireStrong(req.motDePasse());
         user.setMotDePasse(passwordEncoder.encode(req.motDePasse()));
       }
       user.setStatut(Utilisateur.Statut.actif);
@@ -430,7 +481,7 @@ public static record LoginRequest(String email, String motDePasse) {}
       }
 
       user = utilisateurRepository.save(user);
-      return ResponseEntity.status(HttpStatus.CREATED).body(buildLoginResponse(user));
+      return buildLoginResponse(user, clientType, HttpStatus.CREATED);
     } catch (ResponseStatusException e) {
       return ResponseEntity.status(e.getStatusCode()).body(Map.of(
           "error", e.getReason(),
@@ -444,7 +495,9 @@ public static record LoginRequest(String email, String motDePasse) {}
   }
 
   @PostMapping("/register/complete")
-  public ResponseEntity<?> registerStep1Identity(@RequestBody Map<String, String> body) {
+  public ResponseEntity<?> registerStep1Identity(
+      @RequestBody Map<String, String> body,
+      Authentication authentication) {
     String email = body.get("email");
     String nom = body.get("nom");
     String prenom = body.get("prenom");
@@ -456,6 +509,7 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
     return utilisateurRepository.findByEmailIgnoreCase(email)
         .map(u -> {
+          authorizationService.requireSelfOrAdmin(u.getId(), authentication);
           if (!Boolean.TRUE.equals(u.getIsEmailVerified())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body("Email non verifie");
@@ -515,6 +569,7 @@ public static record LoginRequest(String email, String motDePasse) {}
     return null;
   }
   private Utilisateur createCompleteUser(Utilisateur payload) {
+    PasswordPolicy.requireStrong(payload.getMotDePasse());
     payload.setMotDePasse(passwordEncoder.encode(payload.getMotDePasse()));
     payload.setStatut(Utilisateur.Statut.actif);
     payload.setRole(Utilisateur.Role.client);
@@ -525,6 +580,7 @@ public static record LoginRequest(String email, String motDePasse) {}
     return utilisateurRepository.save(payload);
   }
   private Utilisateur completePendingSignup(Utilisateur existing, Utilisateur payload) {
+    PasswordPolicy.requireStrong(payload.getMotDePasse());
     existing.setNom(payload.getNom());
     existing.setPrenom(payload.getPrenom());
     existing.setAdresse(payload.getAdresse());
@@ -538,25 +594,15 @@ public static record LoginRequest(String email, String motDePasse) {}
     existing.setDateCreation(Instant.now().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime());
     return utilisateurRepository.save(existing);
   }
-  private LoginResponse buildLoginResponse(Utilisateur user) {
-    String role = (user.getRole() != null) ? user.getRole().name() : "CLIENT";
-    Instant now = Instant.now();
-    long expiry = 604800;
-    var claims = JwtClaimsSet.builder()
-        .issuer("transport")
-        .issuedAt(now)
-        .expiresAt(now.plusSeconds(expiry))
-        .subject(user.getEmail())
-        .claim("uid", user.getId())
-        .claim("roles", List.of("ROLE_" + role.toUpperCase()))
-        .build();
-    var header = JwsHeader.with(MacAlgorithm.HS256).build();
-    String token = jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+  private ResponseEntity<?> buildLoginResponse(
+      Utilisateur user, String clientType, HttpStatus status) {
+    var pair = authTokenService.createSession(user);
     user.setMotDePasse(null);
-    return new LoginResponse(token, user);
+    boolean nativeClient = "mobile".equalsIgnoreCase(clientType);
+    return authSessionController.loginResponse(pair, user, nativeClient, status);
   }
 
-  private String buildVerificationToken(Utilisateur user) {
+  private String buildVerificationToken(Utilisateur user, String signupSessionId) {
     Instant now = Instant.now();
     var claims = JwtClaimsSet.builder()
         .issuer("transport")
@@ -565,6 +611,7 @@ public static record LoginRequest(String email, String motDePasse) {}
         .subject(user.getId())
         .claim("email", user.getEmail())
         .claim("purpose", "verify_email")
+        .claim("signupSessionId", signupSessionId)
         .build();
     var header = JwsHeader.with(MacAlgorithm.HS256).build();
     return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
@@ -593,16 +640,18 @@ public static record LoginRequest(String email, String motDePasse) {}
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token invalide");
       }
       String userId = jwt.getSubject();
-      if (userId == null || userId.isBlank()) {
+      String signupSessionId = jwt.getClaimAsString("signupSessionId");
+      if (userId == null || userId.isBlank()
+          || signupSessionId == null || signupSessionId.isBlank()) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Token invalide");
       }
 
       return utilisateurRepository.findById(userId)
           .map(u -> {
+            signupVerificationService.markVerified(signupSessionId, userId);
             u.setIsEmailVerified(true);
             utilisateurRepository.save(u);
-            u.setMotDePasse(null);
-            return ResponseEntity.ok().body((Object) Map.of("message", "Email verifie", "user", u));
+            return ResponseEntity.ok().body((Object) Map.of("message", "Email verifie"));
           })
           .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
               .body((Object) Map.of("error", "Utilisateur non trouve")));
@@ -613,16 +662,19 @@ public static record LoginRequest(String email, String motDePasse) {}
   }
 
   @GetMapping("/email-verification-status")
-  public ResponseEntity<Object> emailVerificationStatus(@RequestParam("email") String email) {
+  public ResponseEntity<Object> emailVerificationStatus(
+      @RequestParam("email") String email,
+      @RequestParam("signupToken") String signupToken) {
     if (email == null || email.isBlank()) {
       return ResponseEntity.badRequest().body((Object) Map.of("error", "Email manquant"));
     }
-    boolean verified = utilisateurService.isEmailVerified(email);
+    boolean verified = signupVerificationService.isVerified(email, signupToken);
     return ResponseEntity.ok((Object) Map.of("email", email, "verified", verified));
   }
 
   @PostMapping("/send-email")
-  public ResponseEntity<?> sendEmail(@RequestBody SendEmailRequest req) {
+  public ResponseEntity<?> sendEmail(@RequestBody SendEmailRequest req, Authentication authentication) {
+    authorizationService.requireAdmin(authentication);
     String traceId = UUID.randomUUID().toString();
     if (req == null || req.to() == null || req.to().isBlank()) {
       logger.warn("traceId={} send-email missing recipient", traceId);
@@ -704,18 +756,14 @@ public static record LoginRequest(String email, String motDePasse) {}
       String traceId,
       String genericErrorCode,
       String prefixMessage) {
-    String providerMessage = sanitizeProviderMessage(e.getProviderResponseBody());
     String errorCode = resolveProviderErrorCode(genericErrorCode, e.getStatusCode());
     StringBuilder message = new StringBuilder(prefixMessage);
-    if (!providerMessage.isBlank()) {
-      message.append(": ").append(providerMessage);
-    }
     if (e.getStatusCode() == 401 || e.getStatusCode() == 403) {
       message.append(". Verifiez RESEND_API_KEY et RESEND_FROM. ")
           .append("Avec onboarding@resend.dev, Resend peut refuser l'envoi vers des adresses externes.");
     }
-    logger.error("traceId={} mail provider failure errorCode={} providerStatus={} providerMessage={}",
-        traceId, errorCode, e.getStatusCode(), providerMessage);
+    logger.error("traceId={} mail provider failure errorCode={} providerStatus={}",
+        traceId, errorCode, e.getStatusCode());
     return buildJsonErrorResponse(
         HttpStatus.BAD_GATEWAY,
         traceId,
@@ -866,17 +914,7 @@ public static record LoginRequest(String email, String motDePasse) {}
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadProduit(@RequestParam("image") MultipartFile image) {
         try {
-            if (image == null || image.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("success", false, "message", "Fichier vide"));
-            }
-
-            // (Optionnel) petit contrôle de type MIME côté serveur
-            String contentType = image.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("success", false, "message", "Le fichier doit être une image"));
-            }
+            ImageUploadValidator.validate(image, ImageUploadValidator.STANDARD_MAX_BYTES);
 
             // Paramètres Cloudinary
             Map<String, Object> params = ObjectUtils.asMap(
@@ -899,10 +937,12 @@ public static record LoginRequest(String email, String motDePasse) {}
                     "url", url,           // => à stocker dans ta DB (ex: Produit.imageUrl ou User.photoUrl)
                     "public_id", publicId // => utile pour supprimer/mettre à jour plus tard
             ));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body(Map.of("success", false, "message", e.getReason()));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError()
-                    .body(Map.of("success", false, "message", "Erreur serveur: " + e.getMessage()));
+                    .body(Map.of("success", false, "message", "Erreur interne lors de l'upload"));
         }
     }
     @GetMapping("/me")
@@ -935,6 +975,12 @@ public static record LoginRequest(String email, String motDePasse) {}
                 .map(u -> {
                     try {
                         Utilisateur.Statut s = Utilisateur.Statut.valueOf(statut);
+                        if (!authorizationService.isAdmin(current)
+                                && s != Utilisateur.Statut.actif
+                                && s != Utilisateur.Statut.inactif) {
+                            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                    .body("Seul un administrateur peut bannir un compte");
+                        }
                         u.setStatut(s);
                         utilisateurRepository.save(u);
                         u.setMotDePasse(null);
@@ -946,16 +992,24 @@ public static record LoginRequest(String email, String motDePasse) {}
                 .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body("Utilisateur non trouvé"));
     }
     @GetMapping("/search/numero")
-    public ResponseEntity<?> chercherParNumero(@RequestParam String numero) {
+    public ResponseEntity<UtilisateurSearchResponse> chercherParNumero(
+            @RequestParam String numero,
+            Authentication authentication) {
+        authorizationService.currentUser(authentication);
         return utilisateurService.chercherParNumero(numero)
+                .map(UtilisateurSearchResponse::from)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
     @GetMapping("/search/email")
-    public ResponseEntity<?> chercherParEmail(@RequestParam String email) {
+    public ResponseEntity<UtilisateurSearchResponse> chercherParEmail(
+            @RequestParam String email,
+            Authentication authentication) {
+        authorizationService.currentUser(authentication);
         return utilisateurService.chercherParEmail(email)
-                .map(ResponseEntity::ok)                  // 200 + objet Utilisateur
-                .orElse(ResponseEntity.notFound().build());// 404 si rien
+                .map(UtilisateurSearchResponse::from)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
     @PutMapping("/{id}/localisation")
     public ResponseEntity<?> updateLocalisation(
@@ -994,7 +1048,7 @@ public static record LoginRequest(String email, String motDePasse) {}
             return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Erreur serveur: " + e.getMessage());
+                    .body("Erreur interne lors de la mise a jour de la localisation");
         }
     }
 
@@ -1126,9 +1180,10 @@ public ResponseEntity<?> getPositions(@RequestBody PositionsRequest body, Authen
 @GetMapping("/transporteurs/panne/commandes")
 public ResponseEntity<List<TransporteurPanneCommandesResponse>> getTransporteursEnPanneAvecCommandes(
     Authentication authentication) {
+  authorizationService.requireTransporteurOrAdmin(authentication);
   return ResponseEntity.ok(
       utilisateurService.getTransporteursEnPanneAvecCommandes(
-          authentication != null ? authentication.getName() : null));
+          authentication.getName()));
 }
 
 

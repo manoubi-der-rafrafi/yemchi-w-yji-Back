@@ -12,13 +12,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.BeanWrapper;
-import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -51,6 +49,13 @@ public class CommandeService {
     private final NotificationService notificationService;
     private final RoutingService routingService;
     private final TarificationService tarificationService;
+    private EcommerceOrderStatusSyncService ecommerceOrderStatusSyncService;
+
+    @Autowired(required = false)
+    public void setEcommerceOrderStatusSyncService(
+            EcommerceOrderStatusSyncService ecommerceOrderStatusSyncService) {
+        this.ecommerceOrderStatusSyncService = ecommerceOrderStatusSyncService;
+    }
 
     @Autowired
     public CommandeService(
@@ -215,18 +220,6 @@ public class CommandeService {
             if (details.getZonePrincipaleArrivee() != null) {
                 commande.setZonePrincipaleArrivee(details.getZonePrincipaleArrivee());
             }
-            commande.setQrCodeDepartScanne(details.isQrCodeDepartScanne());
-            if (details.getDateScanDepart() != null) {
-                commande.setDateScanDepart(details.getDateScanDepart());
-            }
-
-            commande.setQrCodeReceptionScanne(details.isQrCodeReceptionScanne());
-            if (details.getDateScanReception() != null) {
-                commande.setDateScanReception(details.getDateScanReception());
-            }
-            if (details.getRelaisTransporteurEffectue() != null) {
-                commande.setRelaisTransporteurEffectue(details.getRelaisTransporteurEffectue());
-            }
             // --- Met a jour la date de modification automatique ---
             commande.setMajLe(LocalDateTime.now());
             enrichCommandeGeography(commande);
@@ -240,61 +233,9 @@ public class CommandeService {
     }
 
     public Commande updateCommandePatch(String id, Commande patch) {
-
-    logger.info("updateCommandePatch id={} vehicule={}", id, patch.getVehicule());
-    return commandeRepository.findById(id).map(new Function<Commande, Commande>() {
-        @Override
-        public Commande apply(Commande existing) {
-            Statut ancienStatut = existing.getStatut();
-            // Copy only non-null fields from patch → existing
-            BeanWrapper srcWrapper = new BeanWrapperImpl(patch);
-            BeanWrapper targetWrapper = new BeanWrapperImpl(existing);
-            
-            for (var pd : srcWrapper.getPropertyDescriptors()) {
-                String field = pd.getName();
-                
-                // Skip technical fields that must NOT be patched
-                if (field.equals("id") ||
-                        field.equals("createdAt") ||
-                        field.equals("majLe") ||
-                        field.equals("prix") ||
-                        field.equals("prixLivreur") ||
-                        field.equals("prixSociete") ||
-                        field.equals("tarificationVehiculeId") ||
-                        field.equals("majorationTarifId") ||
-                        field.equals("pourcentageMajoration") ||
-                        field.equals("prixCommencementApplique") ||
-                        field.equals("prixCommencementLivreurApplique") ||
-                        field.equals("prixCommencementSocieteApplique") ||
-                        field.equals("prixParKilometreApplique") ||
-                        field.equals("prixParKilometreLivreurApplique") ||
-                        field.equals("prixParKilometreSocieteApplique") ||
-                        field.equals("dateCalculTarification") ||
-                        field.equals("tarifFallback") ||
-                        field.equals("distanceKm") ||
-                        field.equals("vehicule")) {
-                    continue;
-                }
-                
-                Object newValue = srcWrapper.getPropertyValue(field);
-                if (newValue != null) {
-                    targetWrapper.setPropertyValue(field, newValue);
-                }
-            }
-            
-            // Always update modification date
-            existing.setMajLe(LocalDateTime.now());
-            enrichCommandeGeography(existing);
-            if (ancienStatut != Statut.confirmer && shouldRecalculateQuote(patch) && hasQuoteInputs(existing)) {
-                applyOfficialQuote(existing);
-            }
-            
-            Commande saved = commandeRepository.save(existing);
-            notifierEvenementsCommande(saved, ancienStatut);
-            return saved;
-        }
-    }).orElseThrow(() -> new IllegalArgumentException("Commande introuvable"));
-}
+        logger.info("updateCommandePatch id={} vehicule={}", id, patch.getVehicule());
+        return updateCommande(id, patch);
+    }
 
     private void enrichCommandeGeography(Commande commande) {
         if (commande == null) {
@@ -1425,12 +1366,18 @@ public Commande marquerReceptionScanne(String id) {
 }
 
 private void notifierEvenementsCommande(Commande commande, Statut ancienStatut) {
-    if (notificationService == null || commande == null || commande.getStatut() == null) {
+    if (commande == null || commande.getStatut() == null) {
         return;
     }
 
     boolean creation = ancienStatut == null;
     boolean statutChange = !creation && ancienStatut != commande.getStatut();
+    if ((creation || statutChange) && ecommerceOrderStatusSyncService != null) {
+        ecommerceOrderStatusSyncService.enqueue(commande);
+    }
+    if (notificationService == null) {
+        return;
+    }
     boolean commandeEnvoyee = commande.getStatut() == Statut.envoyee && (creation || statutChange);
     if (commandeEnvoyee && notBlank(commande.getIdAmie())) {
         notificationService.creer(

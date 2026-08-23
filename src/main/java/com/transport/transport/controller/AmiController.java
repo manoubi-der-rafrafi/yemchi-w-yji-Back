@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.transport.transport.model.Ami;
 import com.transport.transport.model.Utilisateur;
+import com.transport.transport.dto.UtilisateurSearchResponse;
 import com.transport.transport.service.AmiService;
 import com.transport.transport.service.AuthorizationService;
 
@@ -59,9 +60,9 @@ public class AmiController {
 
     // GET /api/amis/{userId}/liste → friends as Utilisateur objects
     @GetMapping("/{userId}/liste")
-    public List<Utilisateur> listerAmisUtilisateur(@PathVariable String userId, Authentication authentication) {
+    public List<UtilisateurSearchResponse> listerAmisUtilisateur(@PathVariable String userId, Authentication authentication) {
         authorizationService.requireSelfOrAdmin(userId, authentication);
-        return amiService.listerAmisUtilisateur(userId);
+        return safeUsers(amiService.listerAmisUtilisateur(userId));
     }
 
     // GET /api/amis/status?u1=...&u2=...
@@ -80,9 +81,9 @@ public class AmiController {
 
     // GET /api/amis/invitations/recues/demandeurs?userId=...
     @GetMapping("/invitations/recues/demandeurs")
-    public ResponseEntity<List<Utilisateur>> getReceivedSenders(@RequestParam String userId, Authentication authentication) {
+    public ResponseEntity<List<UtilisateurSearchResponse>> getReceivedSenders(@RequestParam String userId, Authentication authentication) {
         authorizationService.requireSelfOrAdmin(userId, authentication);
-        return ResponseEntity.ok(amiService.getSendersOfReceivedPendingInvitations(userId));
+        return ResponseEntity.ok(safeUsers(amiService.getSendersOfReceivedPendingInvitations(userId)));
     }
 
     // PUT /api/amis/accepter?demandeurId=7&recepteurId=5
@@ -103,67 +104,70 @@ public class AmiController {
         return ResponseEntity.ok(amiService.refuserInvitationByUsers(demandeurId, recepteurId));
     }
     @GetMapping("/search/mes-amis/numero")
-    public ResponseEntity<List<Utilisateur>> searchMyFriendsByNumero(
+    public ResponseEntity<List<UtilisateurSearchResponse>> searchMyFriendsByNumero(
             @RequestParam("me") String meId,
             @RequestParam("q") String numero,
             Authentication authentication
     ) {
         authorizationService.requireSelfOrAdmin(meId, authentication);
-        List<Utilisateur> res = amiService.searchMyFriendsByNumero(meId, numero);
-        return ResponseEntity.ok(res); // renvoie [] si vide (200)
+        return ResponseEntity.ok(safeUsers(amiService.searchMyFriendsByNumero(meId, numero)));
     }
     @GetMapping("/search/mes-amis/email")
-    public ResponseEntity<List<Utilisateur>> searchMyFriendsByEmail(
+    public ResponseEntity<List<UtilisateurSearchResponse>> searchMyFriendsByEmail(
             @RequestParam("me") String meId,
             @RequestParam("q")  String emailQuery,
             @RequestParam(value = "exact", defaultValue = "false") boolean exact,
             Authentication authentication
     ) {
         authorizationService.requireSelfOrAdmin(meId, authentication);
-        return ResponseEntity.ok(amiService.searchMyFriendsByEmail(meId, emailQuery, exact));
+        return ResponseEntity.ok(safeUsers(amiService.searchMyFriendsByEmail(meId, emailQuery, exact)));
     }
     @GetMapping("/search/mes-amis/nom")
-  public ResponseEntity<List<Utilisateur>> searchMesAmisByNom(
+  public ResponseEntity<List<UtilisateurSearchResponse>> searchMesAmisByNom(
       @RequestParam("me") String me,
       @RequestParam("q") String q,
       Authentication authentication
   ) {
     authorizationService.requireSelfOrAdmin(me, authentication);
-    return ResponseEntity.ok(amiService.searchMesAmisByNom(me, q));
+    return ResponseEntity.ok(safeUsers(amiService.searchMesAmisByNom(me, q)));
   }
 
   // /api/amis/search/mes-amis/prenom?me=ID&q=partiePrenom
   @GetMapping("/search/mes-amis/prenom")
-  public ResponseEntity<List<Utilisateur>> searchMesAmisByPrenom(
+  public ResponseEntity<List<UtilisateurSearchResponse>> searchMesAmisByPrenom(
       @RequestParam("me") String me,
       @RequestParam("q") String q,
       Authentication authentication
   ) {
     authorizationService.requireSelfOrAdmin(me, authentication);
-    return ResponseEntity.ok(amiService.searchMesAmisByPrenom(me, q));
+    return ResponseEntity.ok(safeUsers(amiService.searchMesAmisByPrenom(me, q)));
   }
 
   // /api/amis/search/mes-amis/nom-prenom?me=ID&q=terme   (NOM OU PRENOM)
   @GetMapping("/search/mes-amis/nom-prenom")
-  public ResponseEntity<List<Utilisateur>> searchMesAmisByNomOrPrenom(
+  public ResponseEntity<List<UtilisateurSearchResponse>> searchMesAmisByNomOrPrenom(
       @RequestParam("me") String me,
       @RequestParam("q") String q,
       Authentication authentication
   ) {
     authorizationService.requireSelfOrAdmin(me, authentication);
-    return ResponseEntity.ok(amiService.searchMesAmisByNomOrPrenom(me, q));
+    return ResponseEntity.ok(safeUsers(amiService.searchMesAmisByNomOrPrenom(me, q)));
   }
 
   // (Optionnel) /api/amis/search/mes-amis/nom-et-prenom?me=ID&nom=...&prenom=...
   @GetMapping("/search/mes-amis/nom-et-prenom")
-  public ResponseEntity<List<Utilisateur>> searchMesAmisByNomAndPrenom(
+  public ResponseEntity<List<UtilisateurSearchResponse>> searchMesAmisByNomAndPrenom(
       @RequestParam("me") String me,
       @RequestParam("nom") String nom,
       @RequestParam("prenom") String prenom,
       Authentication authentication
   ) {
     authorizationService.requireSelfOrAdmin(me, authentication);
-    return ResponseEntity.ok(amiService.searchMesAmisByNomAndPrenom(me, nom, prenom));
+    return ResponseEntity.ok(safeUsers(amiService.searchMesAmisByNomAndPrenom(me, nom, prenom)));
+  }
+
+  private List<UtilisateurSearchResponse> safeUsers(List<Utilisateur> users) {
+    return users.stream().map(UtilisateurSearchResponse::from).toList();
   }
 
 }

@@ -20,6 +20,7 @@ import com.cloudinary.utils.ObjectUtils;
 import com.transport.transport.model.Demande;
 import com.transport.transport.service.AuthorizationService;
 import com.transport.transport.service.DemandeService;
+import com.transport.transport.security.ImageUploadValidator;
 
 @RestController
 @RequestMapping("/api/demandes")
@@ -76,17 +77,7 @@ public class DemandeController {
     @PostMapping(value = "/uploadDocuments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadDocuments(@RequestParam("image") MultipartFile image) {
         try {
-            if (image == null || image.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("success", false, "message", "Fichier vide"));
-            }
-
-            // (Optionnel) petit contrôle de type MIME côté serveur
-            String contentType = image.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("success", false, "message", "Le fichier doit être une image"));
-            }
+            ImageUploadValidator.validate(image, ImageUploadValidator.STANDARD_MAX_BYTES);
 
             // Paramètres Cloudinary
             Map<String, Object> params = ObjectUtils.asMap(
@@ -109,10 +100,12 @@ public class DemandeController {
                     "url", url,           // => à stocker dans ta DB (ex: Produit.imageUrl ou User.photoUrl)
                     "public_id", publicId // => utile pour supprimer/mettre à jour plus tard
             ));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body(Map.of("success", false, "message", e.getReason()));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError()
-                    .body(Map.of("success", false, "message", "Erreur serveur: " + e.getMessage()));
+                    .body(Map.of("success", false, "message", "Erreur interne lors de l'upload"));
         }
     }
     

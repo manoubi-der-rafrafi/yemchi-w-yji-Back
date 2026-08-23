@@ -39,9 +39,13 @@ public class AuthorizationService {
     }
 
     String principal = authentication.getName();
-    return utilisateurRepository.findByEmailIgnoreCase(principal)
+    Utilisateur user = utilisateurRepository.findByEmailIgnoreCase(principal)
         .or(() -> utilisateurRepository.findById(principal))
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Utilisateur authentifie introuvable"));
+    if (user.getStatut() == Utilisateur.Statut.banni) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Compte banni");
+    }
+    return user;
   }
 
   public boolean isAdmin(Utilisateur user) {
@@ -69,6 +73,42 @@ public class AuthorizationService {
   public void requireCommandeAccess(Commande commande, Authentication authentication) {
     Utilisateur current = currentUser(authentication);
     if (canAccessCommande(current, commande)) {
+      return;
+    }
+    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");
+  }
+
+  /** Autorise uniquement le client proprietaire de la commande ou un admin. */
+  public void requireCommandeOwnerOrAdmin(Commande commande, Authentication authentication) {
+    Utilisateur current = currentUser(authentication);
+    if (isAdmin(current) || current.getId().equals(commande.getClientId())) {
+      return;
+    }
+    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces reserve au client proprietaire");
+  }
+
+  /** Autorise uniquement un transporteur assigne a la commande ou un admin. */
+  public void requireAssignedTransporteurOrAdmin(Commande commande, Authentication authentication) {
+    Utilisateur current = currentUser(authentication);
+    boolean assignedTransporteur = isTransporteur(current)
+        && (current.getId().equals(commande.getTransporteurId())
+            || current.getId().equals(commande.getTransporteurSecoursId()));
+    if (isAdmin(current) || assignedTransporteur) {
+      return;
+    }
+    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces reserve au transporteur assigne");
+  }
+
+  public void requireCommandeProductsReadAccess(Commande commande, Authentication authentication) {
+    Utilisateur current = currentUser(authentication);
+    if (canAccessCommande(current, commande)) {
+      return;
+    }
+    boolean commandeDisponiblePourTransporteur = isTransporteur(current)
+        && commande.getTransporteurId() == null
+        && commande.getTransporteurSecoursId() == null
+        && commande.getStatut() == Commande.Statut.confirmer;
+    if (commandeDisponiblePourTransporteur) {
       return;
     }
     throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Acces refuse");

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -20,6 +21,8 @@ public class Commande {
 
     @Id
     private String id;
+    @Version
+    private Long version;
 
     private String localisationDepart;
     private String destination;
@@ -85,6 +88,8 @@ public class Commande {
 
     private String partenaireId;
     private String externalBusinessId;
+    private String partenaireNom;
+    private String partenaireLogoUrl;
     private String externalOrderId;
     private String nomDepart;
     private String nomArrivee;
@@ -251,6 +256,8 @@ public enum SousZone {
     // --- Getters / Setters ---
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 
     public String getLocalisationDepart() { return localisationDepart; }
     public void setLocalisationDepart(String localisationDepart) { this.localisationDepart = localisationDepart; }
@@ -352,6 +359,12 @@ public enum SousZone {
 
     public String getExternalBusinessId() { return externalBusinessId; }
     public void setExternalBusinessId(String externalBusinessId) { this.externalBusinessId = externalBusinessId; }
+
+    public String getPartenaireNom() { return partenaireNom; }
+    public void setPartenaireNom(String partenaireNom) { this.partenaireNom = partenaireNom; }
+
+    public String getPartenaireLogoUrl() { return partenaireLogoUrl; }
+    public void setPartenaireLogoUrl(String partenaireLogoUrl) { this.partenaireLogoUrl = partenaireLogoUrl; }
 
     public String getExternalOrderId() { return externalOrderId; }
     public void setExternalOrderId(String externalOrderId) { this.externalOrderId = externalOrderId; }

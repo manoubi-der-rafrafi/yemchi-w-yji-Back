@@ -43,7 +43,7 @@ public class MailService {
     private final String providerResponseBody;
 
     public MailDeliveryException(int statusCode, String providerResponseBody) {
-      super("Erreur Resend: HTTP " + statusCode + " - " + providerResponseBody);
+      super("Erreur du fournisseur email: HTTP " + statusCode);
       this.statusCode = statusCode;
       this.providerResponseBody = providerResponseBody;
     }
@@ -218,8 +218,8 @@ public class MailService {
       try (Response response = httpClient.newCall(request).execute()) {
         if (!response.isSuccessful()) {
           String errorBody = response.body() != null ? response.body().string() : "";
-          logger.warn("MailService sendEmail provider failure status={} to={} subject={} body={}",
-              response.code(), toEmail, subject, errorBody);
+          logger.warn("MailService sendEmail provider failure status={} to={} subject={}",
+              response.code(), toEmail, subject);
           throw new MailDeliveryException(response.code(), errorBody);
         }
         logger.info("MailService sendEmail success to={} subject={}", toEmail, subject);

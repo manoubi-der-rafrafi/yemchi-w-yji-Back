@@ -114,5 +114,9 @@ List<Commande> findByTransporteurIdAndModePaiementNotAndStatutAndSousZone(
         Commande.Zone zoneArrivee,
         TypeVehicule vehicule);
     java.util.Optional<Commande> findByPartenaireIdAndExternalOrderId(String partenaireId, String externalOrderId);
+    List<Commande> findByExternalBusinessIdAndSourceCommandeAndStatutNotIn(
+        String externalBusinessId,
+        Commande.SourceCommande sourceCommande,
+        List<Commande.Statut> statuts);
 
 }

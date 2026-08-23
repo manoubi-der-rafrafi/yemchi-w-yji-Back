@@ -66,6 +66,8 @@ public class PartnerCommandeService {
         Commande commande = new Commande();
         commande.setPartenaireId(principal.getPartnerId());
         commande.setExternalBusinessId(principal.getExternalBusinessId());
+        commande.setPartenaireNom(principal.getBusinessName());
+        commande.setPartenaireLogoUrl(request.businessLogoUrl());
         commande.setExternalOrderId(request.externalOrderId().trim());
         commande.setNomDepart(request.depart().nom());
         commande.setNomArrivee(request.arrivee().nom());

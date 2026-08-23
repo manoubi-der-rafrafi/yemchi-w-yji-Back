@@ -72,6 +72,7 @@ class PartnerOrderNotificationServiceTest {
     private PartnerCreateCommandeRequest buildRequest() {
         return new PartnerCreateCommandeRequest(
                 "ORDER-1001",
+                "https://cdn.example.com/boutique-logo.png",
                 "fragile",
                 BigDecimal.valueOf(55),
                 BigDecimal.valueOf(55),

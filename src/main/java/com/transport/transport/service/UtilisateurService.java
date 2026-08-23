@@ -105,9 +105,8 @@ public class UtilisateurService {
     if (utilisateur.getRole() == null) {
       utilisateur.setRole(Utilisateur.Role.client);
     }
-    // Hash le mot de passe si fourni en clair
-    if (utilisateur.getMotDePasse() != null && utilisateur.getMotDePasse().length() < 20) {
-      // Heuristique simple : si c’est court, on suppose que ce n’est pas déjà un hash
+    // Ne jamais déduire qu'un mot de passe est chiffré à partir de sa longueur.
+    if (utilisateur.getMotDePasse() != null && !isEncodedPassword(utilisateur.getMotDePasse())) {
       utilisateur.setMotDePasse(passwordEncoder.encode(utilisateur.getMotDePasse()));
     }
     return repo.save(utilisateur);
@@ -193,6 +192,15 @@ public class UtilisateurService {
 
   public Utilisateur updateLocalisation(String userId, Double latitude, Double longitude) {
     return updateLocalisation(userId, latitude, longitude, null, null, null, null, null, null, null);
+  }
+
+  private boolean isEncodedPassword(String value) {
+    return value.startsWith("{bcrypt}$2a$")
+        || value.startsWith("{bcrypt}$2b$")
+        || value.startsWith("{bcrypt}$2y$")
+        || value.startsWith("$2a$")
+        || value.startsWith("$2b$")
+        || value.startsWith("$2y$");
   }
 
   public Utilisateur updateLocalisation(

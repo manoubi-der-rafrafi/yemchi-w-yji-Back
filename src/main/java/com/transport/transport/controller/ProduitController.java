@@ -34,6 +34,7 @@ import com.cloudinary.utils.ObjectUtils;
 import com.transport.transport.model.Produit;
 import com.transport.transport.repository.CommandeRepository;
 import com.transport.transport.service.AuthorizationService;
+import com.transport.transport.security.ImageUploadValidator;
 import com.transport.transport.service.ProduitService;
 
 @RestController
@@ -44,7 +45,6 @@ public class ProduitController {
     private ProduitService produitService;
     @Autowired
     private CommandeRepository commandeRepository;
-    private final String uploadBaseDir = "C:/Users/Lenovo/Desktop/angular/transport/public/produits";
     private final Cloudinary cloudinary;
     private final AuthorizationService authorizationService;
 
@@ -90,7 +90,7 @@ public class ProduitController {
     // POST : Créer un nouveau produit
     @PostMapping
     public Produit createProduit(@RequestBody Produit produit, Authentication authentication) {
-        requireProduitCommandeAccess(produit, authentication);
+        requireProduitCommandeWriteAccess(produit, authentication);
         return produitService.createProduit(produit);
     }
 
@@ -98,9 +98,9 @@ public class ProduitController {
     @PutMapping("/{id}")
     public ResponseEntity<Produit> updateProduit(@PathVariable String  id, @RequestBody Produit produitDetails,
                                                  Authentication authentication) {
-        produitService.getProduitById(id).ifPresent(p -> requireProduitCommandeAccess(p, authentication));
+        produitService.getProduitById(id).ifPresent(p -> requireProduitCommandeWriteAccess(p, authentication));
         if (produitDetails.getCommandeId() != null && !produitDetails.getCommandeId().isBlank()) {
-            requireProduitCommandeAccess(produitDetails, authentication);
+            requireProduitCommandeWriteAccess(produitDetails, authentication);
         }
         Produit updatedProduit = produitService.updateProduit(id, produitDetails);
         if (updatedProduit != null) {
@@ -113,26 +113,23 @@ public class ProduitController {
     // DELETE : Supprimer un produit
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduit(@PathVariable String  id, Authentication authentication) {
-        produitService.getProduitById(id).ifPresent(p -> requireProduitCommandeAccess(p, authentication));
+        produitService.getProduitById(id).ifPresent(p -> requireProduitCommandeWriteAccess(p, authentication));
         produitService.deleteProduit(id);
         return ResponseEntity.noContent().build();
     }
     @GetMapping("/commande/{idCommande}")
     public List<Produit> getProduitsByCommande(@PathVariable String  idCommande, Authentication authentication) {
         commandeRepository.findById(idCommande)
-                .ifPresent(commande -> authorizationService.requireCommandeAccess(commande, authentication));
+                .ifPresent(commande -> authorizationService.requireCommandeProductsReadAccess(commande, authentication));
         return produitService.getProduitsByCommandeId(idCommande);
     }
 
 
-    @CrossOrigin(origins = {"http://localhost:4200", "https://yemchi-w-yji-back-1.onrender.com"}, allowCredentials = "true")
+    @CrossOrigin(origins = {"http://localhost:4200", "https://api.yemchi-w-yji.tn"}, allowCredentials = "true")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadProduit(@RequestParam("image") MultipartFile image) {
         try {
-            if (image == null || image.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("success", false, "message", "Fichier vide"));
-            }
+            ImageUploadValidator.validate(image, ImageUploadValidator.STANDARD_MAX_BYTES);
 
             // Options utiles : dossier, type image, nom de fichier auto
             Map params = ObjectUtils.asMap(
@@ -153,10 +150,12 @@ public class ProduitController {
                     "url", url,            // à stocker dans ta DB (Produit.imageUrl)
                     "public_id", publicId  // utile si tu veux supprimer/modifier plus tard
             ));
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body(Map.of("success", false, "message", e.getReason()));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.internalServerError()
-                    .body(Map.of("success", false, "message", "Erreur serveur: " + e.getMessage()));
+                    .body(Map.of("success", false, "message", "Erreur interne lors de l'upload"));
         }
     }
 
@@ -164,7 +163,11 @@ public class ProduitController {
     @PostMapping("/{target}") // target = produits | profile
     public Map<String, String> upload(@PathVariable String target,
                                       @RequestParam("file") MultipartFile file) throws IOException {
-        Map params = ObjectUtils.asMap("folder", "monapp/" + target);
+        String safeTarget = ImageUploadValidator.validateTarget(target);
+        ImageUploadValidator.validate(file, ImageUploadValidator.STANDARD_MAX_BYTES);
+        Map params = ObjectUtils.asMap(
+                "folder", "monapp/" + safeTarget,
+                "resource_type", "image");
         Map uploadResult = cloudinary.uploader().upload(file.getBytes(), params);
         return Map.of("url", (String) uploadResult.get("secure_url"));
     }
@@ -173,11 +176,7 @@ public class ProduitController {
 
         long startMs = System.currentTimeMillis();
         try {
-            if (image.isEmpty()) {
-                return ResponseEntity.ok()
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body("{\"object\":\"objet inconnu\",\"median_weight_kg\":0.0}");
-            }
+            ImageUploadValidator.validate(image, ImageUploadValidator.ANALYSIS_MAX_BYTES);
 
             System.out.println("[detectObject] start size=" + image.getSize()
                     + " contentType=" + image.getContentType()
@@ -227,6 +226,8 @@ public class ProduitController {
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(output);
 
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(e.getReason());
         } catch (HttpTimeoutException e) {
             long durationMs = System.currentTimeMillis() - startMs;
             System.out.println("[detectObject] timeout durationMs=" + durationMs + " msg=" + e.getMessage());
@@ -234,7 +235,6 @@ public class ProduitController {
         } catch (Exception e) {
             long durationMs = System.currentTimeMillis() - startMs;
             System.out.println("[detectObject] failed durationMs=" + durationMs);
-            e.printStackTrace();
             return ResponseEntity.status(500).body("erreur interne detection");
         }
     }
@@ -242,9 +242,24 @@ public class ProduitController {
     private void requireProduitCommandeAccess(Produit produit, Authentication authentication) {
         String commandeId = produit != null ? produit.getCommandeId() : null;
         if (commandeId == null || commandeId.isBlank()) {
+            authorizationService.requireAdmin(authentication);
             return;
         }
-        commandeRepository.findById(commandeId)
-                .ifPresent(commande -> authorizationService.requireCommandeAccess(commande, authentication));
+        var commande = commandeRepository.findById(commandeId)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "Commande introuvable"));
+        authorizationService.requireCommandeAccess(commande, authentication);
+    }
+
+    private void requireProduitCommandeWriteAccess(Produit produit, Authentication authentication) {
+        String commandeId = produit != null ? produit.getCommandeId() : null;
+        if (commandeId == null || commandeId.isBlank()) {
+            authorizationService.requireAdmin(authentication);
+            return;
+        }
+        var commande = commandeRepository.findById(commandeId)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND, "Commande introuvable"));
+        authorizationService.requireCommandeOwnerOrAdmin(commande, authentication);
     }
 }

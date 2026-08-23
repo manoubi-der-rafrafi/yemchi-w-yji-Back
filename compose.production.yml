@@ -1,0 +1,64 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: transport-api:latest
+    container_name: transport-api
+    restart: unless-stopped
+    env_file:
+      - ${APP_ENV_FILE:-.env.production}
+    environment:
+      PORT: "8081"
+      SPRING_PROFILES_ACTIVE: prod
+      LOGGING_LEVEL_COM_TRANSPORT_TRANSPORT: INFO
+      SPRING_DATA_MONGODB_AUTO_INDEX_CREATION: "false"
+      TRUST_PROXY_HEADERS: "true"
+      N8N_IMAGE_ANALYSIS_URL: "http://workflow:8008/webhook/analyze-image1"
+      N8N_ORDER_ANALYSIS_URL: "http://workflow:8008/webhook/analyze-order"
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      workflow:
+        condition: service_healthy
+    cpus: 4.0
+    mem_limit: 6g
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8081/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  workflow:
+    build:
+      context: ./python-workflow-service
+      dockerfile: Dockerfile
+    image: transport-workflow:latest
+    container_name: transport-workflow
+    restart: unless-stopped
+    env_file:
+      - ${APP_ENV_FILE:-.env.production}
+    environment:
+      OPENAI_IMAGE_MODEL: "gpt-4o-mini"
+      OPENAI_ORDER_MODEL: "gpt-5.4-nano"
+    expose:
+      - "8008"
+    cpus: 1.0
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8008/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
