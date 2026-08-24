@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.net.http.HttpClient;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.EcommerceStatusSyncEvent;
+import com.transport.transport.repository.CommandeRepository;
 import com.transport.transport.repository.EcommerceStatusSyncEventRepository;
 
 class EcommerceOrderStatusSyncServiceTest {
@@ -68,5 +70,35 @@ class EcommerceOrderStatusSyncServiceTest {
         verify(repository).save(captor.capture());
         assertEquals("EN_ROUTE", captor.getValue().getEcommerceStatus());
         assertEquals("ecom-1-10", captor.getValue().getExternalOrderId());
+    }
+
+    @Test
+    void reconciliationQueuesB2cOrdersThatChangedWhileWebhookWasDisabled() {
+        EcommerceStatusSyncEventRepository eventRepository =
+                mock(EcommerceStatusSyncEventRepository.class);
+        CommandeRepository commandeRepository = mock(CommandeRepository.class);
+        when(eventRepository.findById(any())).thenReturn(Optional.empty());
+        when(eventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Commande commande = new Commande();
+        commande.setId("transport-1");
+        commande.setExternalOrderId("ecom-1-10");
+        commande.setSourceCommande(Commande.SourceCommande.B2C);
+        commande.setStatut(Commande.Statut.en_route);
+        commande.setMajLe(LocalDateTime.of(2026, 8, 24, 9, 0));
+        when(commandeRepository.findBySourceCommande(Commande.SourceCommande.B2C))
+                .thenReturn(List.of(commande));
+
+        EcommerceOrderStatusSyncService service = new EcommerceOrderStatusSyncService(
+                eventRepository,
+                commandeRepository,
+                new ObjectMapper(),
+                mock(HttpClient.class),
+                "https://ecommerce.example/api/internal/transport/order-status",
+                "shared-secret");
+
+        service.reconcileB2cOrders();
+
+        verify(eventRepository).save(any(EcommerceStatusSyncEvent.class));
     }
 }

@@ -191,16 +191,20 @@ public class PartnerCommandeService {
         Commande commande = getCommandeByExternalOrderId(principal, externalOrderId);
         TransporteurInfo transporteur = null;
         Long etaMinutes = null;
+        String routePhase = resolveRoutePhase(commande);
 
         if (commande.getTransporteurId() != null && !commande.getTransporteurId().isBlank()) {
             Utilisateur transporteurEntity = utilisateurRepository.findById(commande.getTransporteurId()).orElse(null);
             if (transporteurEntity != null) {
                 transporteur = toTransporteurInfo(transporteurEntity);
-                etaMinutes = estimateArrivalMinutes(
-                        transporteurEntity.getLatitude(),
-                        transporteurEntity.getLongitude(),
-                        commande.getLatitudeDestination(),
-                        commande.getLongitudeDestination());
+                if ("VERS_DEPART".equals(routePhase) || "VERS_ARRIVEE".equals(routePhase)) {
+                    boolean versArrivee = "VERS_ARRIVEE".equals(routePhase);
+                    etaMinutes = estimateArrivalMinutes(
+                            transporteurEntity.getLatitude(),
+                            transporteurEntity.getLongitude(),
+                            versArrivee ? commande.getLatitudeDestination() : commande.getLatitudeDepart(),
+                            versArrivee ? commande.getLongitudeDestination() : commande.getLongitudeDepart());
+                }
             }
         }
 
@@ -209,9 +213,22 @@ public class PartnerCommandeService {
                 commande.getId(),
                 commande.getStatut() != null ? commande.getStatut().name() : null,
                 transporteur,
+                routePhase,
+                commande.getLatitudeDepart(),
+                commande.getLongitudeDepart(),
                 commande.getLatitudeDestination(),
                 commande.getLongitudeDestination(),
                 etaMinutes);
+    }
+
+    private String resolveRoutePhase(Commande commande) {
+        if (commande.getStatut() == Commande.Statut.livree) return "TERMINEE";
+        if (commande.getStatut() == Commande.Statut.annulee
+                || commande.getStatut() == Commande.Statut.ANNULEE) return "ANNULEE";
+        if (commande.getTransporteurId() == null || commande.getTransporteurId().isBlank()) {
+            return "EN_ATTENTE_LIVREUR";
+        }
+        return commande.isQrCodeDepartScanne() ? "VERS_ARRIVEE" : "VERS_DEPART";
     }
 
     private Commande getCommandeByExternalOrderId(PartnerPrincipal principal, String externalOrderId) {

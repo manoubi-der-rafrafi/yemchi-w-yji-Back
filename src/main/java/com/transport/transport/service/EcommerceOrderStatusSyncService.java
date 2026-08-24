@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.transport.transport.model.Commande;
 import com.transport.transport.model.EcommerceStatusSyncEvent;
+import com.transport.transport.repository.CommandeRepository;
 import com.transport.transport.repository.EcommerceStatusSyncEventRepository;
 
 @Service
@@ -29,6 +30,7 @@ public class EcommerceOrderStatusSyncService {
     private static final int MAX_ATTEMPTS = 12;
 
     private final EcommerceStatusSyncEventRepository repository;
+    private final CommandeRepository commandeRepository;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final String webhookUrl;
@@ -37,11 +39,13 @@ public class EcommerceOrderStatusSyncService {
     @Autowired
     public EcommerceOrderStatusSyncService(
             EcommerceStatusSyncEventRepository repository,
+            CommandeRepository commandeRepository,
             ObjectMapper objectMapper,
             @Value("${app.ecommerce.status-webhook-url:}") String webhookUrl,
             @Value("${app.ecommerce.status-webhook-secret:}") String webhookSecret) {
-        this(repository, objectMapper, HttpClient.newBuilder()
+        this(repository, commandeRepository, objectMapper, HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
+                .version(HttpClient.Version.HTTP_1_1)
                 .build(), webhookUrl, webhookSecret);
     }
 
@@ -51,7 +55,18 @@ public class EcommerceOrderStatusSyncService {
             HttpClient httpClient,
             String webhookUrl,
             String webhookSecret) {
+        this(repository, null, objectMapper, httpClient, webhookUrl, webhookSecret);
+    }
+
+    EcommerceOrderStatusSyncService(
+            EcommerceStatusSyncEventRepository repository,
+            CommandeRepository commandeRepository,
+            ObjectMapper objectMapper,
+            HttpClient httpClient,
+            String webhookUrl,
+            String webhookSecret) {
         this.repository = repository;
+        this.commandeRepository = commandeRepository;
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
         this.webhookUrl = webhookUrl == null ? "" : webhookUrl.trim();
@@ -92,6 +107,18 @@ public class EcommerceOrderStatusSyncService {
         repository
                 .findTop50ByCompletedAtIsNullAndFailedPermanentlyAtIsNullAndNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(now)
                 .forEach(this::deliver);
+    }
+
+    /**
+     * Recreates a sync event for the current state of every B2C order. This also
+     * repairs orders whose status changed while the webhook was not configured.
+     */
+    @Scheduled(
+            initialDelayString = "${app.ecommerce.status-reconcile-initial-delay-ms:10000}",
+            fixedDelayString = "${app.ecommerce.status-reconcile-ms:60000}")
+    public void reconcileB2cOrders() {
+        if (!isConfigured() || commandeRepository == null) return;
+        commandeRepository.findBySourceCommande(Commande.SourceCommande.B2C).forEach(this::enqueue);
     }
 
     static String mapStatus(Commande.Statut status) {

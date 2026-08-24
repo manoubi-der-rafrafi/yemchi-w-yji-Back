@@ -7,6 +7,9 @@ public record PartnerTrackingResponse(
         String transportOrderId,
         String statut,
         TransporteurInfo transporteur,
+        String routePhase,
+        Double departureLatitude,
+        Double departureLongitude,
         Double destinationLatitude,
         Double destinationLongitude,
         Long estimatedArrivalMinutes) {}
