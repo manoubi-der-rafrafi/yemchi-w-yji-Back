@@ -33,7 +33,7 @@ public class Utilisateur {
      * Indique si l'email a été vérifié.
      * Utilisé pour le flux d'inscription/validation.
      */
-    private Boolean isEmailVerified = false;
+    private Boolean isEmailVerified = true;
 
     private Role role ;
 

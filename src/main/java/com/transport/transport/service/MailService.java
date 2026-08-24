@@ -68,12 +68,30 @@ public class MailService {
    */
   public void sendVerificationEmail(String toEmail, String verificationUrl, String customMessage) {
     String safeMessage = (customMessage == null || customMessage.isBlank())
-        ? "Veuillez confirmer votre adresse email en cliquant sur le bouton ci-dessous :"
-        : customMessage;
+            ? "Veuillez confirmer votre adresse email en cliquant sur le bouton ci-dessous :"
+            : customMessage;
 
     String html = buildVerificationEmailHtml(safeMessage, verificationUrl);
 
     sendEmail(toEmail, "Verifiez votre adresse email", html, true);
+  }
+
+  /**
+   * Envoie un email HTML d'invitation a rejoindre l'app, envoye a une adresse
+   * qui n'a pas encore de compte (ex: depuis la page "Mes amis").
+   *
+   * @param toEmail            adresse du destinataire (pas encore inscrit)
+   * @param loginUrl           URL complete vers la page de connexion de l'app
+   * @param inviterDisplayName nom affiche de la personne qui invite (peut etre null/blank)
+   */
+  public void sendFriendInvitationEmail(String toEmail, String loginUrl, String inviterDisplayName) {
+    String safeInviterName = (inviterDisplayName == null || inviterDisplayName.isBlank())
+            ? "Un utilisateur de Yemchi w Yji"
+            : inviterDisplayName.trim();
+
+    String html = buildInvitationEmailHtml(safeInviterName, loginUrl);
+
+    sendEmail(toEmail, safeInviterName + " vous invite sur Yemchi w Yji", html, true);
   }
 
   private String buildVerificationEmailHtml(String message, String verificationUrl) {
@@ -172,13 +190,114 @@ public class MailService {
         """.formatted(escapedMessage, escapedUrl);
   }
 
+  /**
+   * Construit le HTML de l'email d'invitation "un ami vous invite a rejoindre l'app".
+   * Meme charte graphique que l'email de verification, badge/texte adaptes.
+   */
+  private String buildInvitationEmailHtml(String inviterDisplayName, String loginUrl) {
+    String escapedInviter = escapeHtml(inviterDisplayName);
+    String escapedUrl = escapeHtml(loginUrl);
+
+    return """
+        <!DOCTYPE html>
+        <html lang="fr">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Invitation Yemchi W Yji</title>
+          </head>
+          <body style="margin: 0; padding: 0; background-color: #eef2f7; font-family: Arial, Helvetica, sans-serif; color: #0f172a;">
+            <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; mso-hide: all;">
+              %s vous invite a rejoindre Yemchi W Yji.
+            </div>
+            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="background-color: #eef2f7; margin: 0; padding: 32px 12px;">
+              <tr>
+                <td align="center">
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="max-width: 640px;">
+                    <tr>
+                      <td style="padding-bottom: 16px; text-align: center; font-size: 12px; color: #64748b; letter-spacing: 0.12em; text-transform: uppercase;">
+                        Yemchi W Yji
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background-color: #0f172a; background-image: linear-gradient(135deg, #0f172a 0%%, #1e293b 100%%); border-radius: 24px 24px 0 0; padding: 0 32px 32px 32px; color: #ffffff;">
+                        <div style="height: 6px; background: linear-gradient(90deg, #1d4ed8 0%%, #2563eb 48%%, #c58a1a 100%%); border-radius: 24px 24px 0 0;"></div>
+                        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0">
+                          <tr>
+                            <td align="left" style="padding-top: 24px; padding-bottom: 24px;">
+                              <span style="display: inline-block; width: 72px; height: 6px; border-radius: 999px; background-color: #c58a1a;"></span>
+                            </td>
+                            <td align="right" style="padding-top: 24px; padding-bottom: 24px;">
+                              <span style="display: inline-block; padding: 8px 14px; border-radius: 999px; background-color: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: #cbd5e1;">
+                                INVITATION
+                              </span>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #94a3b8;">
+                          YEMCHI W YJI
+                        </p>
+                        <h1 style="margin: 0 0 14px 0; font-size: 32px; line-height: 1.2; font-weight: 800; color: #f8fafc;">
+                          %s vous invite a rejoindre Yemchi W Yji
+                        </h1>
+                        <p style="margin: 0; font-size: 17px; line-height: 1.7; color: #cbd5e1;">
+                          Demandez et suivez vos livraisons, ou faites-en profiter vos proches, en quelques clics.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="background-color: #ffffff; border-radius: 0 0 24px 24px; padding: 32px; box-shadow: 0 24px 50px rgba(15, 23, 42, 0.08); border: 1px solid #dbe3ee;">
+                        <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.7; color: #0f172a;">
+                          Bonjour,
+                        </p>
+                        <p style="margin: 0 0 28px 0; font-size: 16px; line-height: 1.8; color: #475569;">
+                          <strong>%s</strong> utilise Yemchi W Yji pour ses livraisons et souhaite vous y retrouver.
+                          Connectez-vous (ou creez votre compte en quelques secondes) pour commencer.
+                        </p>
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto 28px auto;">
+                          <tr>
+                            <td align="center" bgcolor="#1d4ed8" style="border-radius: 12px; box-shadow: 0 12px 24px rgba(29, 78, 216, 0.18);">
+                              <a href="%s" style="display: inline-block; padding: 15px 30px; font-size: 16px; font-weight: 700; color: #ffffff; text-decoration: none; border-radius: 12px;">
+                                Rejoindre Yemchi W Yji
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom: 4px; background-color: #f8fafc; border: 1px solid #d9e2ec; border-left: 4px solid #c58a1a; border-radius: 16px;">
+                          <tr>
+                            <td style="padding: 18px 20px;">
+                              <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 700; color: #0f172a;">
+                                Pas encore de compte ?
+                              </p>
+                              <p style="margin: 0; font-size: 14px; line-height: 1.7; color: #475569;">
+                                Aucun souci : le bouton ci-dessus vous amene sur la page de connexion, d'ou vous pourrez creer votre compte en quelques secondes si besoin.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 18px 10px 0 10px; text-align: center; font-size: 12px; line-height: 1.6; color: #94a3b8;">
+                        Cet email a ete envoye automatiquement suite a une invitation. Si vous ne connaissez pas cette personne, vous pouvez ignorer cet email.
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </body>
+        </html>
+        """.formatted(escapedInviter, escapedInviter, escapedInviter, escapedUrl);
+  }
+
   private String escapeHtml(String value) {
     return value
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\"", "&quot;")
-        .replace("'", "&#39;");
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace("\"", "&quot;")
+            .replace("'", "&#39;");
   }
 
   /**
@@ -204,22 +323,22 @@ public class MailService {
 
     try {
       logger.info("MailService sendEmail start to={} subject={} from={} html={}",
-          toEmail, subject, fromEmail, isHtml);
+              toEmail, subject, fromEmail, isHtml);
       String json = objectMapper.writeValueAsString(payload);
       RequestBody requestBody = RequestBody.create(json, JSON);
 
       Request request = new Request.Builder()
-          .url(RESEND_API_URL)
-          .addHeader("Authorization", "Bearer " + apiKey)
-          .addHeader("Content-Type", "application/json")
-          .post(requestBody)
-          .build();
+              .url(RESEND_API_URL)
+              .addHeader("Authorization", "Bearer " + apiKey)
+              .addHeader("Content-Type", "application/json")
+              .post(requestBody)
+              .build();
 
       try (Response response = httpClient.newCall(request).execute()) {
         if (!response.isSuccessful()) {
           String errorBody = response.body() != null ? response.body().string() : "";
           logger.warn("MailService sendEmail provider failure status={} to={} subject={} body={}",
-              response.code(), toEmail, subject, errorBody);
+                  response.code(), toEmail, subject, errorBody);
           throw new MailDeliveryException(response.code(), errorBody);
         }
         logger.info("MailService sendEmail success to={} subject={}", toEmail, subject);

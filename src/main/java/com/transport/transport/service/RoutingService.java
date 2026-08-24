@@ -56,17 +56,19 @@ public class RoutingService {
         HttpRequest request = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(30))
                 .header("Authorization", orsApiKey)
-                .header("Accept", "application/json")
+                .header("Accept", "application/geo+json; charset=UTF-8")
                 .GET()
                 .build();
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 400) {
+                System.out.println("ORS status=" + response.statusCode() + " body=" + response.body());
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Service de routage indisponible");
             }
             return parseRoute(response.body());
         } catch (IOException e) {
+            e.printStackTrace(); // <-- ajoute ça aussi
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Erreur reseau vers le service de routage");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -3,6 +3,7 @@ package com.transport.transport.controller;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,10 +15,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.transport.transport.dto.InviterEmailRequest;
 import com.transport.transport.model.Ami;
 import com.transport.transport.model.Utilisateur;
 import com.transport.transport.service.AmiService;
 import com.transport.transport.service.AuthorizationService;
+import com.transport.transport.service.MailService;
 
 @RestController
 @RequestMapping("/api/amis")
@@ -25,10 +28,15 @@ public class AmiController {
 
     private final AmiService amiService;
     private final AuthorizationService authorizationService;
+    private final MailService mailService;
 
-    public AmiController(AmiService amiService, AuthorizationService authorizationService) {
+    @Value("${app.login.url:http://localhost:4200/login}")
+    private String loginUrl;
+
+    public AmiController(AmiService amiService, AuthorizationService authorizationService, MailService mailService) {
         this.amiService = amiService;
         this.authorizationService = authorizationService;
+        this.mailService = mailService;
     }
 
     @PostMapping("/inviter")
@@ -48,6 +56,7 @@ public class AmiController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
 
 
     // GET /api/amis/{userId} → raw accepted relations (List<Ami>)
@@ -165,5 +174,14 @@ public class AmiController {
     authorizationService.requireSelfOrAdmin(me, authentication);
     return ResponseEntity.ok(amiService.searchMesAmisByNomAndPrenom(me, nom, prenom));
   }
+    @PostMapping("/inviter-email")
+    public ResponseEntity<Void> inviterParEmail(@RequestBody InviterEmailRequest req, Authentication authentication) {
+        authorizationService.requireSelfOrAdmin(req.invitePar(), authentication);
+        String inviterName = ((req.inviterNom() != null ? req.inviterNom() : "") + " "
+                + (req.inviterPrenom() != null ? req.inviterPrenom() : "")).trim();
+        mailService.sendFriendInvitationEmail(req.email(), loginUrl, inviterName);
+        return ResponseEntity.ok().build();
+    }
+
 
 }
