@@ -974,6 +974,40 @@ public static record LoginRequest(String email, String motDePasse) {}
     }
 
 
+    @PutMapping("/{id}/change-password")
+    public ResponseEntity<Object> changePassword(
+            @PathVariable String id,
+            @RequestBody ChangePasswordRequest req,
+            Authentication authentication) {
+
+        Utilisateur current = authorizationService.currentUser(authentication);
+        boolean isAdmin = authorizationService.isAdmin(current);
+        if (!isAdmin && !current.getId().equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Acces refuse");
+        }
+        if (req.ancienMotDePasse() == null || req.nouveauMotDePasse() == null
+                || req.nouveauMotDePasse().isBlank()) {
+            return ResponseEntity.badRequest().body("Champs obligatoires manquants");
+        }
+        return utilisateurRepository.findById(id)
+                .map(user -> {
+                    // Vérifier l'ancien mot de passe
+                    if (!passwordEncoder.matches(req.ancienMotDePasse(), user.getMotDePasse())) {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                .body((Object) "Mot de passe actuel incorrect");
+                    }
+                    if (req.nouveauMotDePasse().length() < 6) {
+                        return ResponseEntity.badRequest()
+                                .body((Object) "Le nouveau mot de passe doit contenir au moins 6 caracteres");
+                    }
+                    user.setMotDePasse(passwordEncoder.encode(req.nouveauMotDePasse()));
+                    utilisateurRepository.save(user);
+                    return ResponseEntity.ok((Object) "Mot de passe modifie avec succes");
+                })
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body((Object) "Utilisateur non trouve"));
+    }
+
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadProduit(@RequestParam("image") MultipartFile image) {
         try {
@@ -1220,6 +1254,8 @@ public ResponseEntity<?> declarerAccidentAvecProduits(
 }
 
 public static record ResetPasswordRequest(String token, String newPassword) {}
+
+public static record ChangePasswordRequest(String ancienMotDePasse, String nouveauMotDePasse) {}
 
 public static record PositionsRequest(List<String> ids) {}
 
