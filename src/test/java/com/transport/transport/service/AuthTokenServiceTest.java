@@ -103,6 +103,14 @@ class AuthTokenServiceTest {
     verify(mongo).updateMulti(any(), any(), any(Class.class));
   }
 
+  @Test
+  void passwordChangeRevokesAllRefreshSessionsForUser() {
+    service.revokeAllForUser("user-1");
+
+    verify(mongo, org.mockito.Mockito.times(2))
+        .updateMulti(any(), any(), any(Class.class));
+  }
+
   private static Utilisateur user() {
     Utilisateur user = new Utilisateur();
     user.setId("user-1");

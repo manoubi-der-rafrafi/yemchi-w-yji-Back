@@ -124,6 +124,20 @@ public class AuthTokenService {
         .ifPresent(session -> revokeFamily(session.getFamilyId(), Instant.now()));
   }
 
+  /** Invalide toutes les sessions renouvelables apres un changement de secret. */
+  public void revokeAllForUser(String userId) {
+    if (userId == null || userId.isBlank()) return;
+    Instant now = Instant.now();
+    mongoTemplate.updateMulti(
+        Query.query(Criteria.where("userId").is(userId).and("revokedAt").is(null)),
+        new Update().set("revokedAt", now),
+        RefreshTokenFamily.class);
+    mongoTemplate.updateMulti(
+        Query.query(Criteria.where("userId").is(userId).and("revokedAt").is(null)),
+        new Update().set("revokedAt", now),
+        RefreshTokenSession.class);
+  }
+
   private TokenPair issuePair(Utilisateur user, RefreshTokenFamily family, Instant now) {
     String refreshToken = randomToken();
     Instant refreshExpiresAt = now.plusSeconds(refreshTokenSeconds);

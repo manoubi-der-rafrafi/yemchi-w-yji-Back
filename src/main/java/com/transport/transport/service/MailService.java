@@ -181,6 +181,41 @@ public class MailService {
         .replace("'", "&#39;");
   }
 
+  /** Envoie un lien de reinitialisation sans inclure d'information sensible. */
+  public void sendPasswordResetEmail(
+      String toEmail, String resetUrl, long validityMinutes) {
+    String safeUrl = escapeHtml(resetUrl);
+    long safeMinutes = Math.max(1, validityMinutes);
+    String html = """
+        <!DOCTYPE html>
+        <html lang="fr">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Reinitialisation du mot de passe</title>
+          </head>
+          <body style="margin:0;padding:32px 12px;background:#eef2f7;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0">
+              <tr><td align="center">
+                <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="max-width:620px;background:#ffffff;border:1px solid #dbe3ee;border-radius:20px;">
+                  <tr><td style="padding:32px;">
+                    <p style="margin:0 0 10px;color:#f0631c;font-weight:700;">YEMCHI W YJI</p>
+                    <h1 style="margin:0 0 16px;font-size:28px;">Reinitialisez votre mot de passe</h1>
+                    <p style="margin:0 0 24px;line-height:1.7;color:#475569;">Une demande de reinitialisation a ete recue pour votre compte.</p>
+                    <p style="text-align:center;margin:0 0 24px;">
+                      <a href="%s" style="display:inline-block;padding:14px 24px;border-radius:12px;background:#1f7fcf;color:#ffffff;text-decoration:none;font-weight:700;">Choisir un nouveau mot de passe</a>
+                    </p>
+                    <p style="margin:0;line-height:1.7;color:#64748b;font-size:14px;">Ce lien expire dans %d minutes et ne peut etre utilise qu'une seule fois. Si vous n'etes pas a l'origine de cette demande, ignorez cet email.</p>
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </body>
+        </html>
+        """.formatted(safeUrl, safeMinutes);
+    sendEmail(toEmail, "Reinitialisation de votre mot de passe", html, true);
+  }
+
   /**
    * Envoi generique d'un email (HTML ou texte) via l'API HTTP Resend.
    */

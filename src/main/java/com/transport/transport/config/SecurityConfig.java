@@ -258,6 +258,9 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/google").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/utilisateur/register/email").permitAll()
+            .requestMatchers(HttpMethod.POST,
+                "/api/utilisateur/forgot-password",
+                "/api/utilisateur/reset-password").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/utilisateur/verify-email").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/utilisateur/email-verification-status").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/analytics/events").permitAll()
@@ -314,6 +317,8 @@ public class SecurityConfig {
           || "/api/utilisateur/register/google".equals(uri)
           || "/api/utilisateur/register/email".equals(uri)
           || "/api/utilisateur/register/complete".equals(uri)
+          || "/api/utilisateur/forgot-password".equals(uri)
+          || "/api/utilisateur/reset-password".equals(uri)
           || "/error".equals(uri);
     }
     if (HttpMethod.GET.matches(method)) {

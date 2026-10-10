@@ -236,6 +236,19 @@ public class CommandeController {
         }
     }
 
+    @PutMapping("/{id}/envoyer-ami")
+    public ResponseEntity<Commande> envoyerAmi(
+            @PathVariable String id,
+            @RequestBody EnvoyerAmiRequest request,
+            Authentication authentication) {
+        Commande commande = commandeService.getCommandeById(id)
+                .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.NOT_FOUND,
+                        "Commande introuvable"));
+        authorizationService.requireCommandeOwnerOrAdmin(commande, authentication);
+        return ResponseEntity.ok(commandeService.envoyerAmi(id, request != null ? request.getIdAmie() : null));
+    }
+
     @PutMapping("/{id}/prepare-vehicle")
     public ResponseEntity<?> prepareCommandeVehicle(@PathVariable String id, Authentication authentication) {
         try {
@@ -741,6 +754,18 @@ public static class SousZoneFilterRequest {
 
     public void setZone(String zone) {
         this.zone = zone;
+    }
+}
+
+public static class EnvoyerAmiRequest {
+    private String idAmie;
+
+    public String getIdAmie() {
+        return idAmie;
+    }
+
+    public void setIdAmie(String idAmie) {
+        this.idAmie = idAmie;
     }
 }
 public static class SousZoneVehiculeFilterRequest {

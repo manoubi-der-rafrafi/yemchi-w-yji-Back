@@ -19,7 +19,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.transport.transport.dto.TransporteurInfo;
 import com.transport.transport.dto.CommandeTransporteurPrincipalResponse;
@@ -235,6 +237,35 @@ public class CommandeService {
     public Commande updateCommandePatch(String id, Commande patch) {
         logger.info("updateCommandePatch id={} vehicule={}", id, patch.getVehicule());
         return updateCommande(id, patch);
+    }
+
+    public Commande envoyerAmi(String id, String idAmie) {
+        if (idAmie == null || idAmie.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Destinataire obligatoire");
+        }
+
+        Commande commande = commandeRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Commande introuvable"));
+
+        if (idAmie.equals(commande.getClientId())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Une commande ne peut pas etre envoyee a son proprietaire");
+        }
+        if (!utilisateurRepository.existsById(idAmie)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Destinataire introuvable");
+        }
+        if (commande.getStatut() != Statut.en_cours && commande.getStatut() != Statut.envoyee) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Cette commande ne peut plus etre envoyee a un ami");
+        }
+
+        Statut ancienStatut = commande.getStatut();
+        commande.setIdAmie(idAmie);
+        commande.setStatut(Statut.envoyee);
+        commande.setMajLe(LocalDateTime.now());
+        Commande saved = commandeRepository.save(commande);
+        notifierEvenementsCommande(saved, ancienStatut);
+        return saved;
     }
 
     private void enrichCommandeGeography(Commande commande) {

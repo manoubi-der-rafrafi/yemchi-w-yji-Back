@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -23,13 +24,14 @@ import com.transport.transport.service.CommandeService;
 class CommandeControllerSecurityTest {
     private CommandeController controller;
     private CommandeService commandes;
+    private AuthorizationService authorization;
     private Authentication authentication;
 
     @BeforeEach
     void setUp() {
         controller = new CommandeController();
         commandes = mock(CommandeService.class);
-        AuthorizationService authorization = mock(AuthorizationService.class);
+        authorization = mock(AuthorizationService.class);
         authentication = mock(Authentication.class);
 
         Utilisateur client = new Utilisateur();
@@ -74,6 +76,30 @@ class CommandeControllerSecurityTest {
         assertNull(result.getSourceCommande());
         assertEquals("Laisser a l'accueil", result.getInstructions());
         assertSensitiveFieldsCleared(result);
+    }
+
+    @Test
+    void envoyerAmiUsesDedicatedAuthorizedTransition() {
+        Commande existing = new Commande();
+        existing.setId("order-1");
+        existing.setClientId("client-1");
+        existing.setStatut(Commande.Statut.en_cours);
+        Commande sent = new Commande();
+        sent.setId("order-1");
+        sent.setClientId("client-1");
+        sent.setIdAmie("friend-1");
+        sent.setStatut(Commande.Statut.envoyee);
+        CommandeController.EnvoyerAmiRequest request = new CommandeController.EnvoyerAmiRequest();
+        request.setIdAmie("friend-1");
+        when(commandes.getCommandeById("order-1")).thenReturn(Optional.of(existing));
+        when(commandes.envoyerAmi("order-1", "friend-1")).thenReturn(sent);
+
+        Commande result = controller.envoyerAmi("order-1", request, authentication).getBody();
+
+        assertEquals(Commande.Statut.envoyee, result.getStatut());
+        assertEquals("friend-1", result.getIdAmie());
+        verify(authorization).requireCommandeOwnerOrAdmin(existing, authentication);
+        verify(commandes).envoyerAmi("order-1", "friend-1");
     }
 
     private static Commande maliciousPayload() {

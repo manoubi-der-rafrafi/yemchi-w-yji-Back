@@ -73,6 +73,12 @@ public class ApiAbuseProtectionFilter extends OncePerRequestFilter {
     if ("POST".equals(method) && uri.startsWith("/api/utilisateur/register")) {
       return new Rule("register", 12, 8, 3600, false);
     }
+    if ("POST".equals(method) && "/api/utilisateur/forgot-password".equals(uri)) {
+      return new Rule("forgot-password", 5, 5, 3600, false);
+    }
+    if ("POST".equals(method) && "/api/utilisateur/reset-password".equals(uri)) {
+      return new Rule("reset-password", 10, 10, 900, false);
+    }
     if ("GET".equals(method) && ("/api/utilisateur/verify-email".equals(uri)
         || "/api/utilisateur/email-verification-status".equals(uri))) {
       return new Rule("email-verification", 60, 30, 3600, false);

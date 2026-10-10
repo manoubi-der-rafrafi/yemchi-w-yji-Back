@@ -2,6 +2,7 @@ package com.transport.transport.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.verify;
@@ -160,6 +161,42 @@ class CommandeServiceTest {
         assertEquals(new BigDecimal("10.000"), result.getPrix());
         assertNotNull(result.getDistanceKm());
         org.junit.jupiter.api.Assertions.assertTrue(result.getDistanceKm() > 0);
+    }
+
+    @Test
+    void envoyerAmiTransitionsDraftToEnvoyee() {
+        Commande commande = new Commande();
+        commande.setId("order-1");
+        commande.setClientId("client-1");
+        commande.setStatut(Commande.Statut.en_cours);
+
+        when(commandeRepository.findById("order-1")).thenReturn(java.util.Optional.of(commande));
+        when(utilisateurRepository.existsById("friend-1")).thenReturn(true);
+        when(commandeRepository.save(any(Commande.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Commande result = service.envoyerAmi("order-1", "friend-1");
+
+        assertEquals(Commande.Statut.envoyee, result.getStatut());
+        assertEquals("friend-1", result.getIdAmie());
+        assertNotNull(result.getMajLe());
+        verify(commandeRepository).save(commande);
+    }
+
+    @Test
+    void envoyerAmiRejectsCompletedCommande() {
+        Commande commande = new Commande();
+        commande.setId("order-1");
+        commande.setClientId("client-1");
+        commande.setStatut(Commande.Statut.livree);
+
+        when(commandeRepository.findById("order-1")).thenReturn(java.util.Optional.of(commande));
+        when(utilisateurRepository.existsById("friend-1")).thenReturn(true);
+
+        ResponseStatusException error = assertThrows(
+                ResponseStatusException.class,
+                () -> service.envoyerAmi("order-1", "friend-1"));
+
+        assertEquals(HttpStatus.CONFLICT, error.getStatusCode());
     }
 
     @Test
